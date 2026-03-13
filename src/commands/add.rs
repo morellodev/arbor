@@ -59,10 +59,7 @@ fn resolve_repo(
             let bare_name = format!("{name}.git");
             let repo_path = config.repos_dir.join(&bare_name);
             if !repo_path.exists() {
-                bail!(
-                    "repository '{name}' not found at {}",
-                    repo_path.display()
-                );
+                bail!("repository '{name}' not found at {}", repo_path.display());
             }
             Ok((name.to_string(), Some(repo_path)))
         }

@@ -35,14 +35,11 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
         display::shorten_path(&dest)
     ));
 
-    if !no_worktree
-        && let Ok(default_branch) = git::head_branch(&dest)
-    {
+    if !no_worktree && let Ok(default_branch) = git::head_branch(&dest) {
         let wt_path = config.worktree_path(&name, &default_branch);
 
-        fs::create_dir_all(wt_path.parent().unwrap()).with_context(|| {
-            format!("failed to create directory: {}", wt_path.display())
-        })?;
+        fs::create_dir_all(wt_path.parent().unwrap())
+            .with_context(|| format!("failed to create directory: {}", wt_path.display()))?;
 
         git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
         display::print_ok(&format!(

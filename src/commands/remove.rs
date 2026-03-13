@@ -13,9 +13,7 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
     }
 
     if !force && git::is_worktree_dirty(&wt_path) {
-        bail!(
-            "worktree has uncommitted changes. Use --force to remove anyway."
-        );
+        bail!("worktree has uncommitted changes. Use --force to remove anyway.");
     }
 
     git::worktree_remove(&wt_path, force)?;

@@ -75,10 +75,7 @@ pub fn remote_branch_exists(branch: &str, cwd: Option<&Path>) -> Result<bool> {
 }
 
 pub fn worktree_add_existing(path: &Path, branch: &str, cwd: Option<&Path>) -> Result<()> {
-    run_git(
-        &["worktree", "add", &path.to_string_lossy(), branch],
-        cwd,
-    )?;
+    run_git(&["worktree", "add", &path.to_string_lossy(), branch], cwd)?;
     Ok(())
 }
 

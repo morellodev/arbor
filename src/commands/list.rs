@@ -31,9 +31,7 @@ fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
         return Ok(Vec::new());
     }
 
-    let mut dir_entries: Vec<_> = fs::read_dir(repos_dir)?
-        .filter_map(|e| e.ok())
-        .collect();
+    let mut dir_entries: Vec<_> = fs::read_dir(repos_dir)?.filter_map(|e| e.ok()).collect();
     dir_entries.sort_by_key(|e| e.file_name());
 
     let mut repos = Vec::new();
@@ -83,10 +81,7 @@ fn list_all_repos(config: &Config) -> Result<()> {
     let repos = scan_repos(config)?;
 
     if repos.is_empty() {
-        eprintln!(
-            "No repositories found in {}",
-            config.repos_dir.display()
-        );
+        eprintln!("No repositories found in {}", config.repos_dir.display());
         return Ok(());
     }
 
@@ -113,8 +108,7 @@ fn list_all_repos_json(config: &Config) -> Result<()> {
     let mut result = serde_json::Map::new();
 
     for repo in repos {
-        let json: Vec<serde_json::Value> =
-            repo.worktrees.iter().map(worktree_to_json).collect();
+        let json: Vec<serde_json::Value> = repo.worktrees.iter().map(worktree_to_json).collect();
         result.insert(repo.display_name, serde_json::Value::Array(json));
     }
 

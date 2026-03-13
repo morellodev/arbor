@@ -170,4 +170,3 @@ pub fn print_short_table(entries: &[WorktreeInfo]) {
 
     println!("{table}");
 }
-

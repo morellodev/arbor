@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
     let mut cmd = Command::new("git");
@@ -15,11 +15,7 @@ fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!(
-            "git {} failed: {}",
-            args.join(" "),
-            stderr.trim()
-        );
+        bail!("git {} failed: {}", args.join(" "), stderr.trim());
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -43,8 +39,8 @@ fn run_git_inherited(args: &[&str], cwd: Option<&Path>) -> Result<()> {
 }
 
 pub fn repo_toplevel() -> Result<PathBuf> {
-    let path = run_git(&["rev-parse", "--show-toplevel"], None)
-        .context("not inside a git repository")?;
+    let path =
+        run_git(&["rev-parse", "--show-toplevel"], None).context("not inside a git repository")?;
     Ok(PathBuf::from(path))
 }
 
@@ -70,17 +66,16 @@ pub fn remote_branch_exists(branch: &str) -> Result<bool> {
 }
 
 pub fn worktree_add_existing(path: &Path, branch: &str) -> Result<()> {
-    run_git_inherited(
-        &["worktree", "add", &path.to_string_lossy(), branch],
-        None,
-    )
+    run_git(&["worktree", "add", &path.to_string_lossy(), branch], None)?;
+    Ok(())
 }
 
 pub fn worktree_add_new_branch(path: &Path, branch: &str) -> Result<()> {
-    run_git_inherited(
+    run_git(
         &["worktree", "add", "-b", branch, &path.to_string_lossy()],
         None,
-    )
+    )?;
+    Ok(())
 }
 
 pub fn create_tracking_branch(branch: &str) -> Result<()> {
@@ -111,10 +106,7 @@ pub fn worktree_prune() -> Result<()> {
 }
 
 pub fn clone_bare(url: &str, dest: &Path) -> Result<()> {
-    run_git_inherited(
-        &["clone", "--bare", url, &dest.to_string_lossy()],
-        None,
-    )
+    run_git_inherited(&["clone", "--bare", url, &dest.to_string_lossy()], None)
 }
 
 /// Bare clones don't set a fetch refspec, so `git fetch` won't pull remote branches
@@ -186,4 +178,98 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>)> {
     }
 
     results
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_single_worktree() {
+        let input = "\
+worktree /home/user/project
+HEAD abc1234
+branch refs/heads/main
+";
+        let result = parse_worktree_list(input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, PathBuf::from("/home/user/project"));
+        assert_eq!(result[0].1.as_deref(), Some("main"));
+    }
+
+    #[test]
+    fn parse_multiple_worktrees() {
+        let input = "\
+worktree /home/user/project
+HEAD abc1234
+branch refs/heads/main
+
+worktree /home/user/.arbor/worktrees/project/feature-auth
+HEAD def5678
+branch refs/heads/feature/auth
+";
+        let result = parse_worktree_list(input);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].1.as_deref(), Some("main"));
+        assert_eq!(
+            result[1].0,
+            PathBuf::from("/home/user/.arbor/worktrees/project/feature-auth")
+        );
+        assert_eq!(result[1].1.as_deref(), Some("feature/auth"));
+    }
+
+    #[test]
+    fn parse_empty_input() {
+        let result = parse_worktree_list("");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn parse_mixed_bare_normal_and_detached() {
+        let input = "\
+worktree /home/user/.arbor/repos/project.git
+HEAD 0000000000000000000000000000000000000000
+bare
+
+worktree /home/user/.arbor/worktrees/project/main
+HEAD abc1234abc1234abc1234abc1234abc1234abc12
+branch refs/heads/main
+
+worktree /home/user/.arbor/worktrees/project/hotfix
+HEAD def5678def5678def5678def5678def5678def56
+detached
+";
+        let result = parse_worktree_list(input);
+        assert_eq!(result.len(), 3);
+
+        assert_eq!(
+            result[0].0,
+            PathBuf::from("/home/user/.arbor/repos/project.git")
+        );
+        assert_eq!(result[0].1, None);
+
+        assert_eq!(result[1].1.as_deref(), Some("main"));
+
+        assert_eq!(
+            result[2].0,
+            PathBuf::from("/home/user/.arbor/worktrees/project/hotfix")
+        );
+        assert_eq!(result[2].1, None);
+    }
+
+    #[test]
+    fn parse_worktree_path_with_spaces() {
+        let input = "\
+worktree /Users/jane doe/My Projects/cool app
+HEAD abc1234
+branch refs/heads/develop
+";
+        let result = parse_worktree_list(input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].0,
+            PathBuf::from("/Users/jane doe/My Projects/cool app")
+        );
+        assert_eq!(result[0].1.as_deref(), Some("develop"));
+    }
 }

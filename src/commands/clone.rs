@@ -1,6 +1,6 @@
 use std::fs;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
 use crate::git;
@@ -14,8 +14,12 @@ pub fn run(config: &Config, url: &str) -> Result<()> {
         bail!("repository already exists at {}", dest.display());
     }
 
-    fs::create_dir_all(&config.repos_dir)
-        .with_context(|| format!("failed to create repos directory: {}", config.repos_dir.display()))?;
+    fs::create_dir_all(&config.repos_dir).with_context(|| {
+        format!(
+            "failed to create repos directory: {}",
+            config.repos_dir.display()
+        )
+    })?;
 
     git::clone_bare(url, &dest)?;
     git::configure_bare_fetch(&dest)?;
@@ -33,11 +37,53 @@ pub fn run(config: &Config, url: &str) -> Result<()> {
 ///   git@github.com:user/repo.git    → repo
 ///   https://github.com/user/repo    → repo
 fn repo_name_from_url(url: &str) -> Result<String> {
-    let name = url
-        .rsplit('/')
-        .next()
-        .or_else(|| url.rsplit(':').next())
-        .context("could not extract repository name from URL")?;
+    let segment = if url.contains('/') {
+        url.rsplit('/').next()
+    } else {
+        url.rsplit(':').next()
+    }
+    .context("could not extract repository name from URL")?;
 
-    Ok(name.strip_suffix(".git").unwrap_or(name).to_string())
+    Ok(segment.strip_suffix(".git").unwrap_or(segment).to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn https_url_with_git_suffix() {
+        let name = repo_name_from_url("https://github.com/user/repo.git").unwrap();
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn https_url_without_git_suffix() {
+        let name = repo_name_from_url("https://github.com/user/repo").unwrap();
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn ssh_url() {
+        let name = repo_name_from_url("git@github.com:user/my-project.git").unwrap();
+        assert_eq!(name, "my-project");
+    }
+
+    #[test]
+    fn url_with_nested_path() {
+        let name = repo_name_from_url("https://gitlab.com/org/group/subgroup/repo.git").unwrap();
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn ssh_url_without_org() {
+        let name = repo_name_from_url("git@github.com:repo.git").unwrap();
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn empty_url_does_not_panic() {
+        let name = repo_name_from_url("").unwrap();
+        assert_eq!(name, "");
+    }
 }

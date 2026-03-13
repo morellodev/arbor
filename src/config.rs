@@ -23,10 +23,15 @@ impl Config {
         let config_path = config_dir.join(CONFIG_FILE_NAME);
 
         if !config_path.exists() {
-            fs::create_dir_all(&config_dir)
-                .with_context(|| format!("failed to create config directory: {}", config_dir.display()))?;
-            fs::write(&config_path, DEFAULT_CONFIG)
-                .with_context(|| format!("failed to write default config: {}", config_path.display()))?;
+            fs::create_dir_all(&config_dir).with_context(|| {
+                format!(
+                    "failed to create config directory: {}",
+                    config_dir.display()
+                )
+            })?;
+            fs::write(&config_path, DEFAULT_CONFIG).with_context(|| {
+                format!("failed to write default config: {}", config_path.display())
+            })?;
         }
 
         let raw = fs::read_to_string(&config_path)
@@ -54,5 +59,67 @@ fn expand_tilde(path: &Path) -> Result<PathBuf> {
         Ok(home.join(s.strip_prefix("~/").unwrap_or(&s[1..])))
     } else {
         Ok(path.to_path_buf())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_tilde_with_slash() {
+        let home = dirs::home_dir().unwrap();
+        let result = expand_tilde(Path::new("~/.arbor/worktrees")).unwrap();
+        assert_eq!(result, home.join(".arbor/worktrees"));
+    }
+
+    #[test]
+    fn expand_tilde_bare() {
+        let home = dirs::home_dir().unwrap();
+        let result = expand_tilde(Path::new("~")).unwrap();
+        assert_eq!(result, home);
+    }
+
+    #[test]
+    fn expand_tilde_absolute_path_unchanged() {
+        let result = expand_tilde(Path::new("/tmp/worktrees")).unwrap();
+        assert_eq!(result, PathBuf::from("/tmp/worktrees"));
+    }
+
+    #[test]
+    fn default_config_parses() {
+        let config: Config = toml::from_str(DEFAULT_CONFIG).unwrap();
+        assert_eq!(config.worktree_dir, PathBuf::from("~/.arbor/worktrees"));
+        assert_eq!(config.repos_dir, PathBuf::from("~/.arbor/repos"));
+    }
+
+    #[test]
+    fn expand_tilde_relative_path_unchanged() {
+        let result = expand_tilde(Path::new("some/relative/path")).unwrap();
+        assert_eq!(result, PathBuf::from("some/relative/path"));
+    }
+
+    #[test]
+    fn invalid_toml_fails() {
+        let result = toml::from_str::<Config>("not valid { toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn missing_field_fails() {
+        let result = toml::from_str::<Config>(r#"worktree_dir = "/tmp/wt""#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn extra_fields_tolerated() {
+        let input = r#"
+worktree_dir = "/tmp/worktrees"
+repos_dir = "/tmp/repos"
+some_future_key = true
+"#;
+        let config: Config = toml::from_str(input).unwrap();
+        assert_eq!(config.worktree_dir, PathBuf::from("/tmp/worktrees"));
+        assert_eq!(config.repos_dir, PathBuf::from("/tmp/repos"));
     }
 }

@@ -13,7 +13,7 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>) -> Result<()> {
 
     if wt_path.exists() {
         display::print_note(&format!(
-            "Worktree already exists at {}",
+            "Already exists at {}",
             display::shorten_path(&wt_path)
         ));
         print_path_hint(&wt_path);
@@ -28,20 +28,20 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>) -> Result<()> {
     if git::local_branch_exists(branch, cwd)? {
         git::worktree_add_existing(&wt_path, branch, cwd)?;
         display::print_ok(&format!(
-            "Worktree created for existing branch '{branch}' at {}",
+            "Linked '{branch}' at {}",
             display::shorten_path(&wt_path)
         ));
     } else if git::remote_branch_exists(branch, cwd)? {
         git::create_tracking_branch(branch, cwd)?;
         git::worktree_add_existing(&wt_path, branch, cwd)?;
         display::print_ok(&format!(
-            "Worktree created for remote branch '{branch}' (tracking origin) at {}",
+            "Linked '{branch}' (tracking origin) at {}",
             display::shorten_path(&wt_path)
         ));
     } else {
         git::worktree_add_new_branch(&wt_path, branch, cwd)?;
         display::print_ok(&format!(
-            "New branch '{branch}' created with worktree at {}",
+            "Created '{branch}' at {}",
             display::shorten_path(&wt_path)
         ));
     }

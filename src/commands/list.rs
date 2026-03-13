@@ -67,9 +67,7 @@ fn list_repo(cwd: Option<&Path>) -> Result<()> {
         return Ok(());
     }
 
-    let label = git::repo_name()
-        .map(|name| format!("Repo {name}"))
-        .unwrap_or_else(|_| "Current repository".to_string());
+    let label = git::repo_name_or_unknown();
 
     let summary = display::summarize(&worktrees);
     println!("{}", display::format_summary(&label, &summary));

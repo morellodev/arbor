@@ -1,8 +1,6 @@
-use anyhow::{Result, bail};
-use colored::Colorize;
-
 use crate::config::Config;
 use crate::{display, git};
+use anyhow::{Result, bail};
 
 pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> Result<()> {
     let repo_name = git::repo_name()?;
@@ -17,18 +15,12 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
     }
 
     git::worktree_remove(&wt_path, force)?;
-    display::print_ok(&format!(
-        "Worktree removed: {}",
-        display::shorten_path(&wt_path)
-    ));
+    display::print_ok(&format!("Removed {}", display::shorten_path(&wt_path)));
 
     if delete_branch {
         match git::delete_branch(branch, None) {
-            Ok(()) => display::print_ok(&format!("Branch '{branch}' deleted.")),
-            Err(e) => eprintln!(
-                "{} Could not delete branch '{branch}': {e}",
-                "warning:".yellow(),
-            ),
+            Ok(()) => display::print_ok(&format!("Deleted branch '{branch}'")),
+            Err(e) => display::print_error(&format!("Could not delete branch '{branch}': {e}")),
         }
     }
 

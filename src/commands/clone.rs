@@ -30,10 +30,7 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
     display::print_note("Fetching remote branches...");
     git::fetch_origin(&dest)?;
 
-    display::print_ok(&format!(
-        "Bare repo ready at {}",
-        display::shorten_path(&dest)
-    ));
+    display::print_ok(&format!("Cloned to {}", display::shorten_path(&dest)));
 
     if !no_worktree && let Ok(default_branch) = git::head_branch(&dest) {
         let wt_path = config.worktree_path(&name, &default_branch);
@@ -43,7 +40,7 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
 
         git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
         display::print_ok(&format!(
-            "Worktree created for '{}' at {}",
+            "Created '{}' at {}",
             default_branch,
             display::shorten_path(&wt_path)
         ));

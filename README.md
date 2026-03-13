@@ -6,6 +6,8 @@
 
 A CLI for managing git worktrees. It keeps all your worktrees under `~/.arbor/worktrees` so you can switch between branches without stashing or losing context.
 
+![demo](demo.gif)
+
 ## Why arbor?
 
 Git worktrees are great: multiple branches checked out at once, no stashing, no half-finished commits. The problem is that `git worktree add` makes you pick a directory every time, and you end up with worktrees scattered everywhere.

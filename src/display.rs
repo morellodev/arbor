@@ -6,11 +6,15 @@ use comfy_table::{ContentArrangement, Table, presets::NOTHING};
 use crate::git::WorktreeInfo;
 
 pub fn print_ok(msg: &str) {
-    eprintln!("{} {msg}", "ok:".green().bold());
+    eprintln!("{} {msg}", "✓".green().bold());
+}
+
+pub fn print_error(msg: &str) {
+    eprintln!("{} {msg}", "✗".red().bold());
 }
 
 pub fn print_note(msg: &str) {
-    eprintln!("{} {msg}", "note:".cyan().bold());
+    eprintln!("{} {msg}", "▸".dimmed());
 }
 
 pub fn print_cd_hint(path: &Path) {

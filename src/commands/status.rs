@@ -9,9 +9,7 @@ pub fn run(short: bool) -> Result<()> {
         return Ok(());
     }
 
-    let label = git::repo_name()
-        .map(|name| name.to_string())
-        .unwrap_or_else(|_| "Status".to_string());
+    let label = git::repo_name_or_unknown();
 
     let summary = display::summarize(&worktrees);
     println!("{}", display::format_summary(&label, &summary));

@@ -43,8 +43,12 @@ impl TestEnv {
     }
 
     fn arbor(&self, args: &[&str]) -> assert_cmd::Command {
+        self.arbor_in(self.repo.path(), args)
+    }
+
+    fn arbor_in(&self, dir: &Path, args: &[&str]) -> assert_cmd::Command {
         let mut cmd = assert_cmd::Command::cargo_bin("arbor").unwrap();
-        cmd.current_dir(self.repo.path());
+        cmd.current_dir(dir);
         cmd.env("HOME", self.home.path());
         #[cfg(windows)]
         cmd.env("USERPROFILE", self.home.path());
@@ -117,6 +121,35 @@ fn add_sanitizes_branch_slashes() {
     assert!(
         Path::new(printed_path).exists(),
         "worktree directory should exist at {printed_path}"
+    );
+}
+
+#[test]
+fn add_from_worktree_uses_main_repo_name() {
+    let env = TestEnv::new();
+
+    let first = env.arbor(&["add", "feat-a"]).output().unwrap();
+    assert!(first.status.success());
+    let wt_a = String::from_utf8_lossy(&first.stdout).trim().to_string();
+
+    // Run second add from inside the first worktree
+    let second = env
+        .arbor_in(Path::new(&wt_a), &["add", "feat-b"])
+        .output()
+        .unwrap();
+    assert!(second.status.success());
+
+    let wt_b = String::from_utf8_lossy(&second.stdout).trim().to_string();
+
+    // Both worktrees should be under the same repo directory
+    let parent_a = Path::new(&wt_a).parent().unwrap();
+    let parent_b = Path::new(&wt_b).parent().unwrap();
+    assert_eq!(
+        parent_a,
+        parent_b,
+        "both worktrees should share the same repo directory, got:\n  {}\n  {}",
+        parent_a.display(),
+        parent_b.display()
     );
 }
 

@@ -45,13 +45,24 @@ fn run_git_inherited(args: &[&str], cwd: Option<&Path>) -> Result<()> {
 }
 
 pub fn repo_toplevel() -> Result<PathBuf> {
-    let path =
-        run_git(&["rev-parse", "--show-toplevel"], None).context("not inside a git repository")?;
+    let porcelain = run_git(&["worktree", "list", "--porcelain"], None)
+        .context("not inside a git repository")?;
+    let first_line = porcelain
+        .lines()
+        .next()
+        .context("empty worktree list output")?;
+    let path = first_line
+        .strip_prefix("worktree ")
+        .context("unexpected worktree list format")?;
     Ok(PathBuf::from(path))
 }
 
 pub fn strip_git_suffix(name: &str) -> &str {
     name.strip_suffix(".git").unwrap_or(name)
+}
+
+pub fn repo_name_or_unknown() -> String {
+    repo_name().unwrap_or_else(|_| "unknown".to_string())
 }
 
 pub fn repo_name() -> Result<String> {

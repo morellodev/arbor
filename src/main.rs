@@ -4,13 +4,22 @@ mod config;
 mod display;
 mod git;
 
+use std::process;
+
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
 
 use cli::{Cli, Command};
 use config::Config;
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(e) = run() {
+        display::print_error(&format!("{e:#}"));
+        process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let cli = Cli::parse();
     let config = Config::load()?;
 

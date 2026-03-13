@@ -17,7 +17,7 @@ fn main() -> Result<()> {
         Command::Add { ref branch } => commands::add(&config, branch),
         Command::List { all } => commands::list(&config, all),
         Command::Remove { ref branch, force } => commands::remove(&config, branch, force),
-        Command::Dir { ref branch } => commands::dir(&config, branch),
+        Command::Dir { ref branch } => commands::dir(branch),
         Command::Clone { ref url } => commands::clone(&config, url),
         Command::Prune => commands::prune(),
         Command::Status => commands::status(),

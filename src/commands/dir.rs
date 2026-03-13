@@ -1,17 +1,17 @@
 use anyhow::{bail, Result};
 
-use crate::config::Config;
 use crate::git;
 
-pub fn run(config: &Config, branch: &str) -> Result<()> {
-    let repo_name = git::repo_name()?;
-    let sanitized = branch.replace('/', "-");
-    let wt_path = config.worktree_dir.join(&repo_name).join(&sanitized);
+pub fn run(branch: &str) -> Result<()> {
+    let porcelain = git::worktree_list_porcelain(None)?;
+    let worktrees = git::parse_worktree_list(&porcelain);
 
-    if !wt_path.exists() {
-        bail!("no worktree found for branch '{branch}' (expected at {})", wt_path.display());
+    for (path, wt_branch) in &worktrees {
+        if wt_branch.as_deref() == Some(branch) {
+            println!("{}", path.display());
+            return Ok(());
+        }
     }
 
-    println!("{}", wt_path.display());
-    Ok(())
+    bail!("no worktree found for branch '{branch}'");
 }

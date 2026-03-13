@@ -6,9 +6,9 @@ mod prune;
 mod remove;
 mod status;
 
+pub use self::dir::run as dir;
 pub use add::run as add;
 pub use clone::run as clone;
-pub use dir::run as dir;
 pub use list::run as list;
 pub use prune::run as prune;
 pub use remove::run as remove;

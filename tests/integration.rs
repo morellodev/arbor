@@ -123,13 +123,13 @@ fn dir_prints_worktree_path() {
     let env = TestEnv::new();
 
     let add_out = env.arbor(&["add", "feat"]).output().unwrap();
-    let add_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+    let add_path = fs::canonicalize(String::from_utf8_lossy(&add_out.stdout).trim()).unwrap();
 
-    let cd_out = env.arbor(&["dir", "feat"]).output().unwrap();
-    assert!(cd_out.status.success());
+    let dir_out = env.arbor(&["dir", "feat"]).output().unwrap();
+    assert!(dir_out.status.success());
 
-    let cd_path = String::from_utf8_lossy(&cd_out.stdout).trim().to_string();
-    assert_eq!(add_path, cd_path);
+    let dir_path = fs::canonicalize(String::from_utf8_lossy(&dir_out.stdout).trim()).unwrap();
+    assert_eq!(add_path, dir_path);
 }
 
 #[test]

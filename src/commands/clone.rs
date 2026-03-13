@@ -37,8 +37,7 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
 
     if !no_worktree {
         if let Ok(default_branch) = git::head_branch(&dest) {
-            let sanitized = git::sanitize_branch(&default_branch);
-            let wt_path = config.worktree_dir.join(&name).join(&sanitized);
+            let wt_path = config.worktree_path(&name, &default_branch);
 
             fs::create_dir_all(wt_path.parent().unwrap()).with_context(|| {
                 format!("failed to create directory: {}", wt_path.display())
@@ -97,7 +96,7 @@ fn repo_name_from_url(url: &str) -> Result<String> {
     }
     .context("could not extract repository name from URL")?;
 
-    Ok(segment.strip_suffix(".git").unwrap_or(segment).to_string())
+    Ok(git::strip_git_suffix(segment).to_string())
 }
 
 #[cfg(test)]

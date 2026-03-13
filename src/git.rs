@@ -2,8 +2,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
+use serde::Serialize;
 
 fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
+    let output = run_git_output(args, cwd)?;
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn run_git_output(args: &[&str], cwd: Option<&Path>) -> Result<std::process::Output> {
     let mut cmd = Command::new("git");
     cmd.args(args);
     if let Some(dir) = cwd {
@@ -18,7 +24,7 @@ fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
         bail!("git {} failed: {}", args.join(" "), stderr.trim());
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    Ok(output)
 }
 
 fn run_git_inherited(args: &[&str], cwd: Option<&Path>) -> Result<()> {
@@ -44,6 +50,10 @@ pub fn repo_toplevel() -> Result<PathBuf> {
     Ok(PathBuf::from(path))
 }
 
+pub fn strip_git_suffix(name: &str) -> &str {
+    name.strip_suffix(".git").unwrap_or(name)
+}
+
 pub fn repo_name() -> Result<String> {
     let toplevel = repo_toplevel()?;
     let name = toplevel
@@ -51,7 +61,7 @@ pub fn repo_name() -> Result<String> {
         .context("repository path has no final component")?
         .to_string_lossy()
         .into_owned();
-    Ok(name.strip_suffix(".git").unwrap_or(&name).to_string())
+    Ok(strip_git_suffix(&name).to_string())
 }
 
 pub fn local_branch_exists(branch: &str, cwd: Option<&Path>) -> Result<bool> {
@@ -100,16 +110,7 @@ pub fn worktree_remove(path: &Path, force: bool) -> Result<()> {
 }
 
 pub fn worktree_prune() -> Result<String> {
-    let output = Command::new("git")
-        .args(["worktree", "prune", "--verbose"])
-        .output()
-        .context("failed to run: git worktree prune --verbose")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("git worktree prune failed: {}", stderr.trim());
-    }
-
+    let output = run_git_output(&["worktree", "prune", "--verbose"], None)?;
     Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
 }
 
@@ -177,7 +178,13 @@ pub fn sanitize_branch(branch: &str) -> String {
     branch.replace('/', "-")
 }
 
-pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>, bool)> {
+pub struct ParsedWorktree {
+    pub path: PathBuf,
+    pub branch: Option<String>,
+    pub bare: bool,
+}
+
+pub fn parse_worktree_list(porcelain: &str) -> Vec<ParsedWorktree> {
     let mut results = Vec::new();
     let mut current_path: Option<PathBuf> = None;
     let mut current_branch: Option<String> = None;
@@ -186,7 +193,11 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>, boo
     for line in porcelain.lines() {
         if let Some(path) = line.strip_prefix("worktree ") {
             if let Some(p) = current_path.take() {
-                results.push((p, current_branch.take(), current_bare));
+                results.push(ParsedWorktree {
+                    path: p,
+                    branch: current_branch.take(),
+                    bare: current_bare,
+                });
             }
             current_path = Some(PathBuf::from(path));
             current_branch = None;
@@ -204,17 +215,44 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>, boo
     }
 
     if let Some(p) = current_path {
-        results.push((p, current_branch, current_bare));
+        results.push(ParsedWorktree {
+            path: p,
+            branch: current_branch,
+            bare: current_bare,
+        });
     }
 
     results
 }
 
+#[derive(Serialize)]
 pub struct WorktreeInfo {
+    #[serde(serialize_with = "serialize_path")]
     pub path: PathBuf,
     pub branch: Option<String>,
     pub dirty: bool,
+    #[serde(serialize_with = "serialize_tracking")]
     pub tracking: Option<(usize, usize)>,
+}
+
+fn serialize_path<S: serde::Serializer>(path: &PathBuf, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&path.display().to_string())
+}
+
+fn serialize_tracking<S: serde::Serializer>(
+    tracking: &Option<(usize, usize)>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::SerializeMap;
+    match tracking {
+        Some((ahead, behind)) => {
+            let mut map = s.serialize_map(Some(2))?;
+            map.serialize_entry("ahead", ahead)?;
+            map.serialize_entry("behind", behind)?;
+            map.end()
+        }
+        None => s.serialize_none(),
+    }
 }
 
 pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
@@ -222,16 +260,16 @@ pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
     let entries = parse_worktree_list(&porcelain);
 
     let mut results = Vec::new();
-    for (path, branch, is_bare) in entries {
-        if is_bare {
+    for entry in entries {
+        if entry.bare {
             continue;
         }
 
-        let tracking = ahead_behind(&path);
-        let dirty = is_worktree_dirty(&path);
+        let tracking = ahead_behind(&entry.path);
+        let dirty = is_worktree_dirty(&entry.path);
         results.push(WorktreeInfo {
-            path,
-            branch,
+            path: entry.path,
+            branch: entry.branch,
             dirty,
             tracking,
         });
@@ -253,9 +291,9 @@ branch refs/heads/main
 ";
         let result = parse_worktree_list(input);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, PathBuf::from("/home/user/project"));
-        assert_eq!(result[0].1.as_deref(), Some("main"));
-        assert!(!result[0].2);
+        assert_eq!(result[0].path, PathBuf::from("/home/user/project"));
+        assert_eq!(result[0].branch.as_deref(), Some("main"));
+        assert!(!result[0].bare);
     }
 
     #[test]
@@ -271,12 +309,12 @@ branch refs/heads/feature/auth
 ";
         let result = parse_worktree_list(input);
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].1.as_deref(), Some("main"));
+        assert_eq!(result[0].branch.as_deref(), Some("main"));
         assert_eq!(
-            result[1].0,
+            result[1].path,
             PathBuf::from("/home/user/.arbor/worktrees/project/feature-auth")
         );
-        assert_eq!(result[1].1.as_deref(), Some("feature/auth"));
+        assert_eq!(result[1].branch.as_deref(), Some("feature/auth"));
     }
 
     #[test]
@@ -304,21 +342,21 @@ detached
         assert_eq!(result.len(), 3);
 
         assert_eq!(
-            result[0].0,
+            result[0].path,
             PathBuf::from("/home/user/.arbor/repos/project.git")
         );
-        assert_eq!(result[0].1, None);
-        assert!(result[0].2);
+        assert_eq!(result[0].branch, None);
+        assert!(result[0].bare);
 
-        assert_eq!(result[1].1.as_deref(), Some("main"));
-        assert!(!result[1].2);
+        assert_eq!(result[1].branch.as_deref(), Some("main"));
+        assert!(!result[1].bare);
 
         assert_eq!(
-            result[2].0,
+            result[2].path,
             PathBuf::from("/home/user/.arbor/worktrees/project/hotfix")
         );
-        assert_eq!(result[2].1, None);
-        assert!(!result[2].2);
+        assert_eq!(result[2].branch, None);
+        assert!(!result[2].bare);
     }
 
     #[test]
@@ -331,9 +369,9 @@ branch refs/heads/develop
         let result = parse_worktree_list(input);
         assert_eq!(result.len(), 1);
         assert_eq!(
-            result[0].0,
+            result[0].path,
             PathBuf::from("/Users/jane doe/My Projects/cool app")
         );
-        assert_eq!(result[0].1.as_deref(), Some("develop"));
+        assert_eq!(result[0].branch.as_deref(), Some("develop"));
     }
 }

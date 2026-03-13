@@ -6,18 +6,18 @@ pub fn run(branch: &str) -> Result<()> {
     let porcelain = git::worktree_list_porcelain(None)?;
     let worktrees = git::parse_worktree_list(&porcelain);
 
-    for (path, wt_branch, _) in &worktrees {
-        if wt_branch.as_deref() == Some(branch) {
-            println!("{}", path.display());
+    for wt in &worktrees {
+        if wt.branch.as_deref() == Some(branch) {
+            println!("{}", wt.path.display());
             return Ok(());
         }
     }
 
     let sanitized_input = git::sanitize_branch(branch);
-    for (path, wt_branch, _) in &worktrees {
-        if let Some(b) = wt_branch.as_deref() {
+    for wt in &worktrees {
+        if let Some(b) = wt.branch.as_deref() {
             if git::sanitize_branch(b) == sanitized_input {
-                println!("{}", path.display());
+                println!("{}", wt.path.display());
                 return Ok(());
             }
         }

@@ -18,6 +18,12 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn worktree_path(&self, repo_name: &str, branch: &str) -> PathBuf {
+        self.worktree_dir
+            .join(repo_name)
+            .join(crate::git::sanitize_branch(branch))
+    }
+
     pub fn load() -> Result<Self> {
         let config_dir = config_dir()?;
         let config_path = config_dir.join(CONFIG_FILE_NAME);

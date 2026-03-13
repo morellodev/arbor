@@ -9,8 +9,7 @@ use crate::{display, git};
 
 pub fn run(config: &Config, branch: &str, repo: Option<&str>) -> Result<()> {
     let (repo_name, repo_cwd) = resolve_repo(config, repo)?;
-    let sanitized = git::sanitize_branch(branch);
-    let wt_path = config.worktree_dir.join(&repo_name).join(&sanitized);
+    let wt_path = config.worktree_path(&repo_name, branch);
 
     if wt_path.exists() {
         display::print_note(&format!(

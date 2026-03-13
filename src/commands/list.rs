@@ -47,10 +47,7 @@ fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
             .unwrap_or_default()
             .to_string_lossy()
             .into_owned();
-        let display_name = name
-            .strip_suffix(".git")
-            .unwrap_or(&name)
-            .to_string();
+        let display_name = git::strip_git_suffix(&name).to_string();
 
         if let Ok(worktrees) = git::worktree_infos(Some(&path)) {
             if !worktrees.is_empty() {
@@ -129,38 +126,5 @@ fn list_all_repos_json(config: &Config) -> Result<()> {
 }
 
 fn worktree_to_json(wt: &git::WorktreeInfo) -> serde_json::Value {
-    let mut obj = serde_json::Map::new();
-    obj.insert(
-        "path".to_string(),
-        serde_json::Value::String(wt.path.display().to_string()),
-    );
-    obj.insert(
-        "branch".to_string(),
-        match &wt.branch {
-            Some(b) => serde_json::Value::String(b.clone()),
-            None => serde_json::Value::Null,
-        },
-    );
-    obj.insert(
-        "dirty".to_string(),
-        serde_json::Value::Bool(wt.dirty),
-    );
-    if let Some((ahead, behind)) = wt.tracking {
-        let mut tracking = serde_json::Map::new();
-        tracking.insert(
-            "ahead".to_string(),
-            serde_json::Value::Number(ahead.into()),
-        );
-        tracking.insert(
-            "behind".to_string(),
-            serde_json::Value::Number(behind.into()),
-        );
-        obj.insert(
-            "tracking".to_string(),
-            serde_json::Value::Object(tracking),
-        );
-    } else {
-        obj.insert("tracking".to_string(), serde_json::Value::Null);
-    }
-    serde_json::Value::Object(obj)
+    serde_json::to_value(wt).expect("WorktreeInfo serialization should not fail")
 }

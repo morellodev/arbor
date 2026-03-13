@@ -34,7 +34,7 @@ fn colored_branch(entry: &WorktreeInfo) -> String {
 }
 
 fn colored_state(entry: &WorktreeInfo) -> String {
-    if entry.is_dirty() {
+    if entry.dirty {
         "dirty".yellow().to_string()
     } else {
         "clean".green().to_string()
@@ -68,7 +68,7 @@ pub fn summarize(worktrees: &[WorktreeInfo]) -> WorktreeSummary {
     let mut detached = 0;
 
     for wt in worktrees {
-        if wt.is_dirty() {
+        if wt.dirty {
             dirty += 1;
         }
         if let Some((a, b)) = wt.tracking {
@@ -136,7 +136,7 @@ fn new_table() -> Table {
     table
 }
 
-pub fn print_table(entries: &[WorktreeInfo], show_preview: bool) {
+pub fn print_table(entries: &[WorktreeInfo]) {
     let mut table = new_table();
     table.set_header(vec![
         "Branch".dimmed().to_string(),
@@ -152,15 +152,6 @@ pub fn print_table(entries: &[WorktreeInfo], show_preview: bool) {
             colored_tracking(entry),
             shorten_path(&entry.path).dimmed().to_string(),
         ]);
-
-        if show_preview && entry.is_dirty() {
-            table.add_row(vec![
-                String::new(),
-                preview_text(entry),
-                String::new(),
-                String::new(),
-            ]);
-        }
     }
 
     println!("{table}");
@@ -180,15 +171,3 @@ pub fn print_short_table(entries: &[WorktreeInfo]) {
     println!("{table}");
 }
 
-fn preview_text(entry: &WorktreeInfo) -> String {
-    let mut out = "Changes:".dimmed().to_string();
-    for line in &entry.status_preview {
-        out.push('\n');
-        out.push_str(&format!("  {line}").dimmed().to_string());
-    }
-    if entry.status_truncated() {
-        out.push('\n');
-        out.push_str(&"  ... more changes not shown".dimmed().to_string());
-    }
-    out
-}

@@ -19,7 +19,7 @@ pub fn run(short: bool) -> Result<()> {
     if short {
         display::print_short_table(&worktrees);
     } else {
-        display::print_table(&worktrees, true);
+        display::print_table(&worktrees);
     }
     Ok(())
 }

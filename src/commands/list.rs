@@ -78,7 +78,7 @@ fn list_repo(cwd: Option<&Path>) -> Result<()> {
 
     let summary = display::summarize(&worktrees);
     println!("{}", display::format_summary(&label, &summary));
-    display::print_table(&worktrees, false);
+    display::print_table(&worktrees);
     Ok(())
 }
 
@@ -97,7 +97,7 @@ fn list_all_repos(config: &Config) -> Result<()> {
         println!("{}", format!("# {}", repo.display_name).bold());
         let summary = display::summarize(&repo.worktrees);
         println!("{}", display::format_summary("Summary", &summary));
-        display::print_table(&repo.worktrees, false);
+        display::print_table(&repo.worktrees);
         println!();
     }
 
@@ -143,7 +143,7 @@ fn worktree_to_json(wt: &git::WorktreeInfo) -> serde_json::Value {
     );
     obj.insert(
         "dirty".to_string(),
-        serde_json::Value::Bool(wt.is_dirty()),
+        serde_json::Value::Bool(wt.dirty),
     );
     if let Some((ahead, behind)) = wt.tracking {
         let mut tracking = serde_json::Map::new();

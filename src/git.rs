@@ -3,8 +3,6 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-const STATUS_PREVIEW_LINES: usize = 4;
-
 fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
     let mut cmd = Command::new("git");
     cmd.args(args);
@@ -215,18 +213,8 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>, boo
 pub struct WorktreeInfo {
     pub path: PathBuf,
     pub branch: Option<String>,
-    pub status_preview: Vec<String>,
+    pub dirty: bool,
     pub tracking: Option<(usize, usize)>,
-}
-
-impl WorktreeInfo {
-    pub fn is_dirty(&self) -> bool {
-        !self.status_preview.is_empty()
-    }
-
-    pub fn status_truncated(&self) -> bool {
-        self.status_preview.len() > STATUS_PREVIEW_LINES
-    }
 }
 
 pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
@@ -240,26 +228,16 @@ pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
         }
 
         let tracking = ahead_behind(&path);
+        let dirty = is_worktree_dirty(&path);
         results.push(WorktreeInfo {
-            status_preview: status_preview(&path),
             path,
             branch,
+            dirty,
             tracking,
         });
     }
 
     Ok(results)
-}
-
-fn status_preview(path: &Path) -> Vec<String> {
-    match status_porcelain(path) {
-        Ok(output) if !output.is_empty() => output
-            .lines()
-            .take(STATUS_PREVIEW_LINES + 1)
-            .map(|line| line.to_string())
-            .collect(),
-        _ => Vec::new(),
-    }
 }
 
 #[cfg(test)]

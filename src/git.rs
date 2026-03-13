@@ -1,0 +1,189 @@
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use anyhow::{bail, Context, Result};
+
+fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
+    let mut cmd = Command::new("git");
+    cmd.args(args);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let output = cmd
+        .output()
+        .with_context(|| format!("failed to run: git {}", args.join(" ")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "git {} failed: {}",
+            args.join(" "),
+            stderr.trim()
+        );
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn run_git_inherited(args: &[&str], cwd: Option<&Path>) -> Result<()> {
+    let mut cmd = Command::new("git");
+    cmd.args(args);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let status = cmd
+        .status()
+        .with_context(|| format!("failed to run: git {}", args.join(" ")))?;
+
+    if !status.success() {
+        bail!("git {} exited with status {}", args.join(" "), status);
+    }
+
+    Ok(())
+}
+
+pub fn repo_toplevel() -> Result<PathBuf> {
+    let path = run_git(&["rev-parse", "--show-toplevel"], None)
+        .context("not inside a git repository")?;
+    Ok(PathBuf::from(path))
+}
+
+pub fn repo_name() -> Result<String> {
+    let toplevel = repo_toplevel()?;
+    let name = toplevel
+        .file_name()
+        .context("repository path has no final component")?
+        .to_string_lossy()
+        .into_owned();
+    // Bare repos cloned by arbor end in ".git" — strip it for the display name.
+    Ok(name.strip_suffix(".git").unwrap_or(&name).to_string())
+}
+
+pub fn local_branch_exists(branch: &str) -> Result<bool> {
+    let refspec = format!("refs/heads/{branch}");
+    Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], None).is_ok())
+}
+
+pub fn remote_branch_exists(branch: &str) -> Result<bool> {
+    let refspec = format!("refs/remotes/origin/{branch}");
+    Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], None).is_ok())
+}
+
+pub fn worktree_add_existing(path: &Path, branch: &str) -> Result<()> {
+    run_git_inherited(
+        &["worktree", "add", &path.to_string_lossy(), branch],
+        None,
+    )
+}
+
+pub fn worktree_add_new_branch(path: &Path, branch: &str) -> Result<()> {
+    run_git_inherited(
+        &["worktree", "add", "-b", branch, &path.to_string_lossy()],
+        None,
+    )
+}
+
+pub fn create_tracking_branch(branch: &str) -> Result<()> {
+    let remote_ref = format!("origin/{branch}");
+    run_git(&["branch", "--track", branch, &remote_ref], None)?;
+    Ok(())
+}
+
+pub fn worktree_list_porcelain(cwd: Option<&Path>) -> Result<String> {
+    run_git(&["worktree", "list", "--porcelain"], cwd)
+}
+
+pub fn worktree_list(cwd: Option<&Path>) -> Result<String> {
+    run_git(&["worktree", "list"], cwd)
+}
+
+pub fn worktree_remove(path: &Path, force: bool) -> Result<()> {
+    let path_str = path.to_string_lossy();
+    if force {
+        run_git_inherited(&["worktree", "remove", "--force", &path_str], None)
+    } else {
+        run_git_inherited(&["worktree", "remove", &path_str], None)
+    }
+}
+
+pub fn worktree_prune() -> Result<()> {
+    run_git_inherited(&["worktree", "prune", "--verbose"], None)
+}
+
+pub fn clone_bare(url: &str, dest: &Path) -> Result<()> {
+    run_git_inherited(
+        &["clone", "--bare", url, &dest.to_string_lossy()],
+        None,
+    )
+}
+
+/// Bare clones don't set a fetch refspec, so `git fetch` won't pull remote branches
+/// unless we configure it explicitly.
+pub fn configure_bare_fetch(repo_path: &Path) -> Result<()> {
+    run_git(
+        &[
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/*:refs/remotes/origin/*",
+        ],
+        Some(repo_path),
+    )?;
+    Ok(())
+}
+
+pub fn fetch_origin(repo_path: &Path) -> Result<()> {
+    run_git_inherited(&["fetch", "origin"], Some(repo_path))
+}
+
+pub fn status_porcelain(cwd: &Path) -> Result<String> {
+    run_git(&["status", "--porcelain"], Some(cwd))
+}
+
+/// Returns `None` when no upstream is configured.
+pub fn ahead_behind(cwd: &Path) -> Option<(usize, usize)> {
+    let output = run_git(
+        &["rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
+        Some(cwd),
+    )
+    .ok()?;
+
+    let parts: Vec<&str> = output.split_whitespace().collect();
+    if parts.len() == 2 {
+        let behind = parts[0].parse().ok()?;
+        let ahead = parts[1].parse().ok()?;
+        Some((ahead, behind))
+    } else {
+        None
+    }
+}
+
+/// Branch is `None` for detached HEAD or bare worktree entries.
+pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>)> {
+    let mut results = Vec::new();
+    let mut current_path: Option<PathBuf> = None;
+    let mut current_branch: Option<String> = None;
+
+    for line in porcelain.lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            if let Some(p) = current_path.take() {
+                results.push((p, current_branch.take()));
+            }
+            current_path = Some(PathBuf::from(path));
+            current_branch = None;
+        } else if let Some(branch_ref) = line.strip_prefix("branch ") {
+            // refs/heads/main → main
+            current_branch = Some(
+                branch_ref
+                    .strip_prefix("refs/heads/")
+                    .unwrap_or(branch_ref)
+                    .to_string(),
+            );
+        }
+    }
+
+    if let Some(p) = current_path {
+        results.push((p, current_branch));
+    }
+
+    results
+}

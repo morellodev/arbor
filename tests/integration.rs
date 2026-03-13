@@ -18,13 +18,11 @@ impl TestEnv {
         let repos_dir = home.path().join(".arbor/repos");
 
         fs::create_dir_all(home.path().join(".arbor")).unwrap();
+        let worktree_str = worktree_dir.to_string_lossy().replace('\\', "/");
+        let repos_str = repos_dir.to_string_lossy().replace('\\', "/");
         fs::write(
             home.path().join(".arbor/config.toml"),
-            format!(
-                "worktree_dir = \"{}\"\nrepos_dir = \"{}\"\n",
-                worktree_dir.display(),
-                repos_dir.display(),
-            ),
+            format!("worktree_dir = \"{worktree_str}\"\nrepos_dir = \"{repos_str}\"\n"),
         )
         .unwrap();
 
@@ -48,6 +46,8 @@ impl TestEnv {
         let mut cmd = assert_cmd::Command::cargo_bin("arbor").unwrap();
         cmd.current_dir(self.repo.path());
         cmd.env("HOME", self.home.path());
+        #[cfg(windows)]
+        cmd.env("USERPROFILE", self.home.path());
         cmd.args(args);
         cmd
     }
@@ -58,13 +58,14 @@ impl TestEnv {
 }
 
 fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {
-    let output = Command::new("git")
-        .args(args)
+    let mut cmd = Command::new("git");
+    cmd.args(args)
         .current_dir(dir.path())
         .env("HOME", home)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .unwrap();
+        .env("GIT_TERMINAL_PROMPT", "0");
+    #[cfg(windows)]
+    cmd.env("USERPROFILE", home);
+    let output = cmd.output().unwrap();
     assert!(
         output.status.success(),
         "git {} failed: {}",

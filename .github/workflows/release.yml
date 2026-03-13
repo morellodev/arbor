@@ -7,6 +7,9 @@ on:
 permissions:
   contents: write
 
+env:
+  RUSTUP_TOOLCHAIN: stable
+
 jobs:
   build:
     name: Build (${{ matrix.target }})

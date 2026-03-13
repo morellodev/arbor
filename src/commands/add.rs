@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::IsTerminal;
 
 use anyhow::{Context, Result};
 
@@ -11,7 +12,8 @@ pub fn run(config: &Config, branch: &str) -> Result<()> {
     let wt_path = config.worktree_dir.join(&repo_name).join(&sanitized);
 
     if wt_path.exists() {
-        println!("{}", wt_path.display());
+        eprintln!("Worktree already exists at {}", wt_path.display());
+        print_path_hint(&wt_path);
         return Ok(());
     }
 
@@ -28,6 +30,14 @@ pub fn run(config: &Config, branch: &str) -> Result<()> {
     }
 
     eprintln!("Worktree created at {}", wt_path.display());
-    println!("{}", wt_path.display());
+    print_path_hint(&wt_path);
     Ok(())
+}
+
+fn print_path_hint(path: &std::path::Path) {
+    if std::io::stdout().is_terminal() {
+        eprintln!("To switch to it, run:\n  cd {}", path.display());
+    } else {
+        println!("{}", path.display());
+    }
 }

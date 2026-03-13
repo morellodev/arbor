@@ -13,10 +13,10 @@ pub fn run(branch: &str) -> Result<()> {
         }
     }
 
-    let sanitized_input = branch.replace('/', "-");
+    let sanitized_input = git::sanitize_branch(branch);
     for (path, wt_branch, _) in &worktrees {
         if let Some(b) = wt_branch.as_deref() {
-            if b.replace('/', "-") == sanitized_input {
+            if git::sanitize_branch(b) == sanitized_input {
                 println!("{}", path.display());
                 return Ok(());
             }

@@ -1,12 +1,9 @@
 use std::path::Path;
 
 use colored::Colorize;
+use comfy_table::{ContentArrangement, Table, presets::NOTHING};
 
 use crate::git::WorktreeInfo;
-
-const BRANCH_WIDTH: usize = 24;
-const STATE_WIDTH: usize = 8;
-const TRACKING_WIDTH: usize = 30;
 
 pub fn print_ok(msg: &str) {
     eprintln!("{} {msg}", "ok:".green().bold());
@@ -29,43 +26,30 @@ pub fn shorten_path(path: &Path) -> String {
     path.display().to_string()
 }
 
-fn branch_label(entry: &WorktreeInfo) -> String {
-    entry
-        .branch
-        .as_deref()
-        .unwrap_or("(detached)")
-        .to_string()
-}
-
-fn state_label(entry: &WorktreeInfo) -> &'static str {
-    if entry.is_dirty() { "dirty" } else { "clean" }
-}
-
-enum TrackingState {
-    UpToDate,
-    Ahead,
-    Behind,
-    Diverged,
-    NoUpstream,
-}
-
-fn tracking_state(entry: &WorktreeInfo) -> TrackingState {
-    match entry.tracking {
-        Some((0, 0)) => TrackingState::UpToDate,
-        Some((_, 0)) => TrackingState::Ahead,
-        Some((0, _)) => TrackingState::Behind,
-        Some(_) => TrackingState::Diverged,
-        None => TrackingState::NoUpstream,
+fn colored_branch(entry: &WorktreeInfo) -> String {
+    match &entry.branch {
+        Some(name) => name.bold().to_string(),
+        None => "(detached)".yellow().to_string(),
     }
 }
 
-fn tracking_label(entry: &WorktreeInfo) -> String {
+fn colored_state(entry: &WorktreeInfo) -> String {
+    if entry.is_dirty() {
+        "dirty".yellow().to_string()
+    } else {
+        "clean".green().to_string()
+    }
+}
+
+fn colored_tracking(entry: &WorktreeInfo) -> String {
     match entry.tracking {
-        Some((0, 0)) => "up-to-date".to_string(),
-        Some((ahead, 0)) => format!("ahead {ahead}"),
-        Some((0, behind)) => format!("behind {behind}"),
-        Some((ahead, behind)) => format!("ahead {ahead}, behind {behind}"),
-        None => "no upstream".to_string(),
+        Some((0, 0)) => "up-to-date".green().to_string(),
+        Some((ahead, 0)) => format!("ahead {ahead}").cyan().to_string(),
+        Some((0, behind)) => format!("behind {behind}").magenta().to_string(),
+        Some((ahead, behind)) => format!("ahead {ahead}, behind {behind}")
+            .magenta()
+            .to_string(),
+        None => "no upstream".dimmed().to_string(),
     }
 }
 
@@ -144,96 +128,67 @@ pub fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     )
 }
 
+fn new_table() -> Table {
+    let mut table = Table::new();
+    table
+        .load_preset(NOTHING)
+        .set_content_arrangement(ContentArrangement::Dynamic);
+    table
+}
+
 pub fn print_table(entries: &[WorktreeInfo], show_preview: bool) {
-    print_header();
+    let mut table = new_table();
+    table.set_header(vec![
+        "Branch".dimmed().to_string(),
+        "State".dimmed().to_string(),
+        "Tracking".dimmed().to_string(),
+        "Path".dimmed().to_string(),
+    ]);
+
     for entry in entries {
-        print_row(entry);
+        table.add_row(vec![
+            colored_branch(entry),
+            colored_state(entry),
+            colored_tracking(entry),
+            shorten_path(&entry.path).dimmed().to_string(),
+        ]);
+
         if show_preview && entry.is_dirty() {
-            print_preview(entry);
+            table.add_row(vec![
+                String::new(),
+                preview_text(entry),
+                String::new(),
+                String::new(),
+            ]);
         }
     }
+
+    println!("{table}");
 }
 
 pub fn print_short_table(entries: &[WorktreeInfo]) {
+    let mut table = new_table();
+
     for entry in entries {
-        let branch = format!("{:width$}", branch_label(entry), width = BRANCH_WIDTH);
-        let branch = if entry.branch.is_some() {
-            branch.bold()
-        } else {
-            branch.yellow()
-        };
-
-        let state = format!("{:width$}", state_label(entry), width = STATE_WIDTH);
-        let state = if entry.is_dirty() {
-            state.yellow()
-        } else {
-            state.green()
-        };
-
-        let tracking = tracking_label(entry);
-        let tracking = match tracking_state(entry) {
-            TrackingState::UpToDate => tracking.green(),
-            TrackingState::Ahead => tracking.cyan(),
-            TrackingState::Behind | TrackingState::Diverged => tracking.magenta(),
-            TrackingState::NoUpstream => tracking.dimmed(),
-        };
-
-        println!("{branch} {state} {tracking}");
+        table.add_row(vec![
+            colored_branch(entry),
+            colored_state(entry),
+            colored_tracking(entry),
+        ]);
     }
+
+    println!("{table}");
 }
 
-fn print_row(entry: &WorktreeInfo) {
-    let branch = format!("{:width$}", branch_label(entry), width = BRANCH_WIDTH);
-    let branch = if entry.branch.is_some() {
-        branch.bold()
-    } else {
-        branch.yellow()
-    };
-
-    let state = format!("{:width$}", state_label(entry), width = STATE_WIDTH);
-    let state = if entry.is_dirty() {
-        state.yellow()
-    } else {
-        state.green()
-    };
-
-    let tracking = format!("{:width$}", tracking_label(entry), width = TRACKING_WIDTH);
-    let tracking = match tracking_state(entry) {
-        TrackingState::UpToDate => tracking.green(),
-        TrackingState::Ahead => tracking.cyan(),
-        TrackingState::Behind | TrackingState::Diverged => tracking.magenta(),
-        TrackingState::NoUpstream => tracking.dimmed(),
-    };
-
-    let path = shorten_path(&entry.path).dimmed();
-
-    println!("{branch} {state} {tracking} {path}");
-}
-
-fn print_header() {
-    let header = format!(
-        "{:branch_width$} {:state_width$} {:tracking_width$} Path",
-        "Branch",
-        "State",
-        "Tracking",
-        branch_width = BRANCH_WIDTH,
-        state_width = STATE_WIDTH,
-        tracking_width = TRACKING_WIDTH
-    );
-    println!("{}", header.dimmed());
-    println!("{}", "-".repeat(header.len()).dimmed());
-}
-
-fn print_preview(entry: &WorktreeInfo) {
-    const INDENT: &str = "    ";
-    println!("{}", format!("{INDENT}Changes:").dimmed());
+fn preview_text(entry: &WorktreeInfo) -> String {
+    let mut out = "Changes:".dimmed().to_string();
     for line in &entry.status_preview {
-        println!("{}", format!("{INDENT}  {line}").dimmed());
+        out.push('\n');
+        out.push_str(&format!("  {line}").dimmed().to_string());
     }
     if entry.status_truncated() {
-        println!(
-            "{}",
-            format!("{INDENT}  ... more changes not shown").dimmed()
-        );
+        out.push('\n');
+        out.push_str(&"  ... more changes not shown".dimmed().to_string());
     }
+    out
 }

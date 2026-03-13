@@ -175,6 +175,10 @@ pub fn is_worktree_dirty(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+pub fn sanitize_branch(branch: &str) -> String {
+    branch.replace('/', "-")
+}
+
 pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>, bool)> {
     let mut results = Vec::new();
     let mut current_path: Option<PathBuf> = None;

@@ -23,11 +23,11 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
         )
     })?;
 
-    eprintln!("{}", "Cloning bare repository...".dimmed());
+    display::print_note("Cloning bare repository...");
     git::clone_bare(&url, &dest)?;
     git::configure_bare_fetch(&dest)?;
 
-    eprintln!("{}", "Fetching remote branches...".dimmed());
+    display::print_note("Fetching remote branches...");
     git::fetch_origin(&dest)?;
 
     display::print_ok(&format!(
@@ -37,7 +37,7 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
 
     if !no_worktree {
         if let Ok(default_branch) = git::head_branch(&dest) {
-            let sanitized = default_branch.replace('/', "-");
+            let sanitized = git::sanitize_branch(&default_branch);
             let wt_path = config.worktree_dir.join(&name).join(&sanitized);
 
             fs::create_dir_all(wt_path.parent().unwrap()).with_context(|| {

@@ -6,7 +6,7 @@ use crate::{display, git};
 
 pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> Result<()> {
     let repo_name = git::repo_name()?;
-    let sanitized = branch.replace('/', "-");
+    let sanitized = git::sanitize_branch(branch);
     let wt_path = config.worktree_dir.join(&repo_name).join(&sanitized);
 
     if !wt_path.exists() {

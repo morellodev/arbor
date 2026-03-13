@@ -20,6 +20,51 @@ pub fn run(config: &Config, all: bool, json: bool) -> Result<()> {
     }
 }
 
+struct RepoEntry {
+    display_name: String,
+    worktrees: Vec<git::WorktreeInfo>,
+}
+
+fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
+    let repos_dir = &config.repos_dir;
+    if !repos_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut dir_entries: Vec<_> = fs::read_dir(repos_dir)?
+        .filter_map(|e| e.ok())
+        .collect();
+    dir_entries.sort_by_key(|e| e.file_name());
+
+    let mut repos = Vec::new();
+    for entry in dir_entries {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let display_name = name
+            .strip_suffix(".git")
+            .unwrap_or(&name)
+            .to_string();
+
+        if let Ok(worktrees) = git::worktree_infos(Some(&path)) {
+            if !worktrees.is_empty() {
+                repos.push(RepoEntry {
+                    display_name,
+                    worktrees,
+                });
+            }
+        }
+    }
+
+    Ok(repos)
+}
+
 fn list_repo(cwd: Option<&Path>) -> Result<()> {
     let worktrees = git::worktree_infos(cwd)?;
     if worktrees.is_empty() {
@@ -38,45 +83,22 @@ fn list_repo(cwd: Option<&Path>) -> Result<()> {
 }
 
 fn list_all_repos(config: &Config) -> Result<()> {
-    let repos_dir = &config.repos_dir;
-    if !repos_dir.exists() {
-        eprintln!("No repos directory found at {}", repos_dir.display());
+    let repos = scan_repos(config)?;
+
+    if repos.is_empty() {
+        eprintln!(
+            "No repositories found in {}",
+            config.repos_dir.display()
+        );
         return Ok(());
     }
 
-    let mut entries: Vec<_> = fs::read_dir(repos_dir)?
-        .filter_map(|e| e.ok())
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    let mut found = false;
-    for entry in entries {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned();
-            let display_name = name.strip_suffix(".git").unwrap_or(&name);
-
-            match git::worktree_infos(Some(&path)) {
-                Ok(worktrees) if !worktrees.is_empty() => {
-                    found = true;
-                    println!("{}", format!("# {display_name}").bold());
-                    let summary = display::summarize(&worktrees);
-                    println!("{}", display::format_summary("Summary", &summary));
-                    display::print_table(&worktrees, false);
-                    println!();
-                }
-                Ok(_) => {}
-                Err(_) => continue,
-            }
-        }
-    }
-
-    if !found {
-        eprintln!("No repositories found in {}", repos_dir.display());
+    for repo in &repos {
+        println!("{}", format!("# {}", repo.display_name).bold());
+        let summary = display::summarize(&repo.worktrees);
+        println!("{}", display::format_summary("Summary", &summary));
+        display::print_table(&repo.worktrees, false);
+        println!();
     }
 
     Ok(())
@@ -84,45 +106,19 @@ fn list_all_repos(config: &Config) -> Result<()> {
 
 fn list_repo_json(cwd: Option<&Path>) -> Result<()> {
     let worktrees = git::worktree_infos(cwd)?;
-    let json: Vec<serde_json::Value> = worktrees
-        .iter()
-        .map(|wt| worktree_to_json(wt))
-        .collect();
+    let json: Vec<serde_json::Value> = worktrees.iter().map(worktree_to_json).collect();
     println!("{}", serde_json::to_string_pretty(&json)?);
     Ok(())
 }
 
 fn list_all_repos_json(config: &Config) -> Result<()> {
-    let repos_dir = &config.repos_dir;
+    let repos = scan_repos(config)?;
     let mut result = serde_json::Map::new();
 
-    if repos_dir.exists() {
-        let mut entries: Vec<_> = fs::read_dir(repos_dir)?
-            .filter_map(|e| e.ok())
-            .collect();
-        entries.sort_by_key(|e| e.file_name());
-
-        for entry in entries {
-            let path = entry.path();
-            if path.is_dir() {
-                let name = path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned();
-                let display_name = name.strip_suffix(".git").unwrap_or(&name).to_string();
-
-                if let Ok(worktrees) = git::worktree_infos(Some(&path)) {
-                    if !worktrees.is_empty() {
-                        let json: Vec<serde_json::Value> = worktrees
-                            .iter()
-                            .map(|wt| worktree_to_json(wt))
-                            .collect();
-                        result.insert(display_name, serde_json::Value::Array(json));
-                    }
-                }
-            }
-        }
+    for repo in repos {
+        let json: Vec<serde_json::Value> =
+            repo.worktrees.iter().map(worktree_to_json).collect();
+        result.insert(repo.display_name, serde_json::Value::Array(json));
     }
 
     println!(

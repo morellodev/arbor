@@ -26,11 +26,11 @@ cargo uninstall arbor
 ## Quick start
 
 ```sh
-# From any git repo, create a worktree for a branch
-arbor add feat/login
+# Clone a repo for worktree-based workflows (auto-creates a worktree for the default branch)
+arbor clone user/my-app
 
-# Create and switch to it in one step
-cd $(arbor add feat/login)
+# Create a worktree for a branch
+arbor add feat/login
 
 # See all worktrees
 arbor ls
@@ -38,21 +38,38 @@ arbor ls
 # Check which are dirty or ahead/behind
 arbor status
 
-# Done with a branch? Remove the worktree
-arbor rm feat/login
+# Done with a branch? Remove the worktree and its local branch
+arbor rm -d feat/login
 ```
+
+## Shell integration
+
+For the best experience, add shell integration so `arbor add` automatically `cd`s into the new worktree:
+
+```sh
+# Add to your ~/.zshrc or ~/.bashrc:
+eval "$(arbor init zsh)"    # or bash
+
+# Fish users — add to ~/.config/fish/config.fish:
+arbor init fish | source
+```
+
+Then `arbor add feat/login` creates the worktree **and** switches to it in one step.
 
 ## Commands
 
-| Command                      | Alias | Description                                                                                                       |
-| ---------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------- |
-| `arbor add <branch>`         |       | Create a worktree. Checks out an existing local branch, fetches and tracks a remote branch, or creates a new one. |
-| `arbor list [--all]`         | `ls`  | List worktrees for the current repo. Pass `--all` to list across all repos cloned with `arbor clone`.             |
-| `arbor remove <branch> [-f]` | `rm`  | Remove a worktree. Use `-f` to force removal of dirty worktrees.                                                  |
-| `arbor dir <branch>`         |       | Print the filesystem path of the worktree for a branch.                                                           |
-| `arbor clone <url>`          |       | Clone a repo as a bare repository into `~/.arbor/repos/`, configured for worktree workflows.                      |
-| `arbor status`               |       | Show all worktrees with dirty/clean state and ahead/behind counts.                                                |
-| `arbor prune`                |       | Remove stale worktree references.                                                                                 |
+| Command | Alias | Description |
+| --- | --- | --- |
+| `arbor add <branch> [--repo <name>]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. Use `--repo` to add from any directory. |
+| `arbor list [--all] [--json]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` outputs machine-readable JSON. |
+| `arbor remove <branch> [-f] [-d]` | `rm` | Remove a worktree. `-f` forces removal of dirty worktrees. `-d` also deletes the local branch. |
+| `arbor dir <branch>` | | Print the worktree path for a branch. Accepts both `feature/auth` and `feature-auth`. |
+| `arbor clone <url> [--no-worktree]` | | Clone a repo as a bare repository and create a worktree for the default branch. Use `--no-worktree` to skip. Supports `user/repo` shorthand for GitHub. |
+| `arbor status [--short]` | | Show all worktrees with dirty/clean state and ahead/behind counts. `--short` for compact output. |
+| `arbor fetch` | | Fetch from origin in the current bare repo. |
+| `arbor prune` | | Remove stale worktree references. |
+| `arbor init <shell>` | | Print shell integration snippet (bash, zsh, fish). |
+| `arbor completions <shell>` | | Generate shell completions (bash, zsh, fish, elvish, powershell). |
 
 ## How it works
 
@@ -64,12 +81,11 @@ When you run `arbor add feat/login` inside a repo called `my-app`, arbor creates
 
 Slashes in branch names become dashes in the directory name.
 
-For a fully worktree-based workflow, use `arbor clone` to set up a bare repo, then create worktrees from there:
+For a fully worktree-based workflow, use `arbor clone` to set up a bare repo:
 
 ```sh
-arbor clone git@github.com:user/my-app.git
-cd ~/.arbor/repos/my-app.git
-arbor add main
+arbor clone user/my-app
+# Automatically creates a worktree for the default branch and prints the path
 arbor add feat/login
 ```
 
@@ -83,18 +99,6 @@ repos_dir = "~/.arbor/repos"
 ```
 
 Edit these to change where worktrees and bare repos are stored.
-
-## Shell tip
-
-Add a helper to your `.zshrc` or `.bashrc` to combine `add` and `cd`:
-
-```sh
-arborcd() {
-  cd "$(arbor add "$1")"
-}
-```
-
-Then `arborcd feat/login` creates the worktree and switches to it in one step.
 
 ## License
 

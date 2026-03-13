@@ -16,6 +16,7 @@ pub enum Command {
     },
 
     /// List worktrees for the current repository
+    #[command(visible_alias = "ls")]
     List {
         /// Show worktrees for all repositories
         #[arg(long)]
@@ -23,6 +24,7 @@ pub enum Command {
     },
 
     /// Remove the worktree for a branch
+    #[command(visible_alias = "rm")]
     Remove {
         /// Branch name whose worktree to remove
         branch: String,

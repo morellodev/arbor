@@ -1,6 +1,6 @@
 # 🌳 arbor
 
-[![CI](https://github.com/morellodev/arbor/actions/workflows/ci.yml/badge.svg)](https://github.com/morellodev/arbor/actions/workflows/ci.yml)
+[![Test & Lint](https://github.com/morellodev/arbor/actions/workflows/ci.yml/badge.svg)](https://github.com/morellodev/arbor/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/morellodev/arbor)](https://github.com/morellodev/arbor/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 

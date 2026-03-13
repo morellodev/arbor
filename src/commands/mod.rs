@@ -1,6 +1,8 @@
 mod add;
 mod clone;
 mod dir;
+mod fetch;
+mod init;
 mod list;
 mod prune;
 mod remove;
@@ -9,6 +11,8 @@ mod status;
 pub use self::dir::run as dir;
 pub use add::run as add;
 pub use clone::run as clone;
+pub use fetch::run as fetch;
+pub use init::run as init;
 pub use list::run as list;
 pub use prune::run as prune;
 pub use remove::run as remove;

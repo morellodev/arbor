@@ -8,8 +8,6 @@ const BRANCH_WIDTH: usize = 24;
 const STATE_WIDTH: usize = 8;
 const TRACKING_WIDTH: usize = 30;
 
-// --- Message helpers ---
-
 pub fn print_ok(msg: &str) {
     eprintln!("{} {msg}", "ok:".green().bold());
 }
@@ -19,10 +17,17 @@ pub fn print_note(msg: &str) {
 }
 
 pub fn print_cd_hint(path: &Path) {
-    eprintln!("  {}", format!("cd {}", path.display()).dimmed());
+    eprintln!("  {}", format!("cd {}", shorten_path(path)).dimmed());
 }
 
-// --- Label helpers (presentation logic for WorktreeInfo) ---
+pub fn shorten_path(path: &Path) -> String {
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(relative) = path.strip_prefix(&home) {
+            return format!("~/{}", relative.display());
+        }
+    }
+    path.display().to_string()
+}
 
 fn branch_label(entry: &WorktreeInfo) -> String {
     entry
@@ -63,8 +68,6 @@ fn tracking_label(entry: &WorktreeInfo) -> String {
         None => "no upstream".to_string(),
     }
 }
-
-// --- Summary ---
 
 pub struct WorktreeSummary {
     pub total: usize,
@@ -141,8 +144,6 @@ pub fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     )
 }
 
-// --- Table ---
-
 pub fn print_table(entries: &[WorktreeInfo], show_preview: bool) {
     print_header();
     for entry in entries {
@@ -150,6 +151,34 @@ pub fn print_table(entries: &[WorktreeInfo], show_preview: bool) {
         if show_preview && entry.is_dirty() {
             print_preview(entry);
         }
+    }
+}
+
+pub fn print_short_table(entries: &[WorktreeInfo]) {
+    for entry in entries {
+        let branch = format!("{:width$}", branch_label(entry), width = BRANCH_WIDTH);
+        let branch = if entry.branch.is_some() {
+            branch.bold()
+        } else {
+            branch.yellow()
+        };
+
+        let state = format!("{:width$}", state_label(entry), width = STATE_WIDTH);
+        let state = if entry.is_dirty() {
+            state.yellow()
+        } else {
+            state.green()
+        };
+
+        let tracking = tracking_label(entry);
+        let tracking = match tracking_state(entry) {
+            TrackingState::UpToDate => tracking.green(),
+            TrackingState::Ahead => tracking.cyan(),
+            TrackingState::Behind | TrackingState::Diverged => tracking.magenta(),
+            TrackingState::NoUpstream => tracking.dimmed(),
+        };
+
+        println!("{branch} {state} {tracking}");
     }
 }
 
@@ -176,7 +205,7 @@ fn print_row(entry: &WorktreeInfo) {
         TrackingState::NoUpstream => tracking.dimmed(),
     };
 
-    let path = entry.path.display().to_string().dimmed();
+    let path = shorten_path(&entry.path).dimmed();
 
     println!("{branch} {state} {tracking} {path}");
 }

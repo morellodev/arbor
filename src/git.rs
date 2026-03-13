@@ -53,36 +53,38 @@ pub fn repo_name() -> Result<String> {
         .context("repository path has no final component")?
         .to_string_lossy()
         .into_owned();
-    // Bare repos cloned by arbor end in ".git" — strip it for the display name.
     Ok(name.strip_suffix(".git").unwrap_or(&name).to_string())
 }
 
-pub fn local_branch_exists(branch: &str) -> Result<bool> {
+pub fn local_branch_exists(branch: &str, cwd: Option<&Path>) -> Result<bool> {
     let refspec = format!("refs/heads/{branch}");
-    Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], None).is_ok())
+    Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], cwd).is_ok())
 }
 
-pub fn remote_branch_exists(branch: &str) -> Result<bool> {
+pub fn remote_branch_exists(branch: &str, cwd: Option<&Path>) -> Result<bool> {
     let refspec = format!("refs/remotes/origin/{branch}");
-    Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], None).is_ok())
+    Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], cwd).is_ok())
 }
 
-pub fn worktree_add_existing(path: &Path, branch: &str) -> Result<()> {
-    run_git(&["worktree", "add", &path.to_string_lossy(), branch], None)?;
-    Ok(())
-}
-
-pub fn worktree_add_new_branch(path: &Path, branch: &str) -> Result<()> {
+pub fn worktree_add_existing(path: &Path, branch: &str, cwd: Option<&Path>) -> Result<()> {
     run_git(
-        &["worktree", "add", "-b", branch, &path.to_string_lossy()],
-        None,
+        &["worktree", "add", &path.to_string_lossy(), branch],
+        cwd,
     )?;
     Ok(())
 }
 
-pub fn create_tracking_branch(branch: &str) -> Result<()> {
+pub fn worktree_add_new_branch(path: &Path, branch: &str, cwd: Option<&Path>) -> Result<()> {
+    run_git(
+        &["worktree", "add", "-b", branch, &path.to_string_lossy()],
+        cwd,
+    )?;
+    Ok(())
+}
+
+pub fn create_tracking_branch(branch: &str, cwd: Option<&Path>) -> Result<()> {
     let remote_ref = format!("origin/{branch}");
-    run_git(&["branch", "--track", branch, &remote_ref], None)?;
+    run_git(&["branch", "--track", branch, &remote_ref], cwd)?;
     Ok(())
 }
 
@@ -99,16 +101,24 @@ pub fn worktree_remove(path: &Path, force: bool) -> Result<()> {
     }
 }
 
-pub fn worktree_prune() -> Result<()> {
-    run_git_inherited(&["worktree", "prune", "--verbose"], None)
+pub fn worktree_prune() -> Result<String> {
+    let output = Command::new("git")
+        .args(["worktree", "prune", "--verbose"])
+        .output()
+        .context("failed to run: git worktree prune --verbose")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git worktree prune failed: {}", stderr.trim());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
 }
 
 pub fn clone_bare(url: &str, dest: &Path) -> Result<()> {
     run_git_inherited(&["clone", "--bare", url, &dest.to_string_lossy()], None)
 }
 
-/// Bare clones don't set a fetch refspec, so `git fetch` won't pull remote branches
-/// unless we configure it explicitly.
 pub fn configure_bare_fetch(repo_path: &Path) -> Result<()> {
     run_git(
         &[
@@ -129,7 +139,6 @@ pub fn status_porcelain(cwd: &Path) -> Result<String> {
     run_git(&["status", "--porcelain"], Some(cwd))
 }
 
-/// Returns `None` when no upstream is configured.
 pub fn ahead_behind(cwd: &Path) -> Option<(usize, usize)> {
     let output = run_git(
         &["rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
@@ -147,19 +156,39 @@ pub fn ahead_behind(cwd: &Path) -> Option<(usize, usize)> {
     }
 }
 
-/// Branch is `None` for detached HEAD or bare worktree entries.
-pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>)> {
+pub fn head_branch(repo_path: &Path) -> Result<String> {
+    let output = run_git(&["symbolic-ref", "HEAD"], Some(repo_path))?;
+    Ok(output
+        .strip_prefix("refs/heads/")
+        .unwrap_or(&output)
+        .to_string())
+}
+
+pub fn delete_branch(branch: &str, cwd: Option<&Path>) -> Result<()> {
+    run_git(&["branch", "-d", branch], cwd)?;
+    Ok(())
+}
+
+pub fn is_worktree_dirty(path: &Path) -> bool {
+    status_porcelain(path)
+        .map(|s| !s.is_empty())
+        .unwrap_or(false)
+}
+
+pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>, bool)> {
     let mut results = Vec::new();
     let mut current_path: Option<PathBuf> = None;
     let mut current_branch: Option<String> = None;
+    let mut current_bare = false;
 
     for line in porcelain.lines() {
         if let Some(path) = line.strip_prefix("worktree ") {
             if let Some(p) = current_path.take() {
-                results.push((p, current_branch.take()));
+                results.push((p, current_branch.take(), current_bare));
             }
             current_path = Some(PathBuf::from(path));
             current_branch = None;
+            current_bare = false;
         } else if let Some(branch_ref) = line.strip_prefix("branch ") {
             current_branch = Some(
                 branch_ref
@@ -167,11 +196,13 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>)> {
                     .unwrap_or(branch_ref)
                     .to_string(),
             );
+        } else if line == "bare" {
+            current_bare = true;
         }
     }
 
     if let Some(p) = current_path {
-        results.push((p, current_branch));
+        results.push((p, current_branch, current_bare));
     }
 
     results
@@ -199,7 +230,11 @@ pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
     let entries = parse_worktree_list(&porcelain);
 
     let mut results = Vec::new();
-    for (path, branch) in entries {
+    for (path, branch, is_bare) in entries {
+        if is_bare {
+            continue;
+        }
+
         let tracking = ahead_behind(&path);
         results.push(WorktreeInfo {
             status_preview: status_preview(&path),
@@ -238,6 +273,7 @@ branch refs/heads/main
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, PathBuf::from("/home/user/project"));
         assert_eq!(result[0].1.as_deref(), Some("main"));
+        assert!(!result[0].2);
     }
 
     #[test]
@@ -290,14 +326,17 @@ detached
             PathBuf::from("/home/user/.arbor/repos/project.git")
         );
         assert_eq!(result[0].1, None);
+        assert!(result[0].2);
 
         assert_eq!(result[1].1.as_deref(), Some("main"));
+        assert!(!result[1].2);
 
         assert_eq!(
             result[2].0,
             PathBuf::from("/home/user/.arbor/worktrees/project/hotfix")
         );
         assert_eq!(result[2].1, None);
+        assert!(!result[2].2);
     }
 
     #[test]

@@ -21,11 +21,11 @@ cargo test <test_name>         # Run a single test by name
 ## Architecture
 
 - **`src/main.rs`** — Entry point. Parses CLI args (clap) and dispatches to command handlers.
-- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, List, Remove, Dir, Clone, Prune, Status).
+- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, List, Remove, Dir, Clone, Prune, Status, Fetch, Init, Completions).
 - **`src/config.rs`** — Loads/creates `~/.arbor/config.toml` with tilde expansion. Uses serde + toml.
 - **`src/git.rs`** — All git operations via `std::process::Command`. Two runners: `run_git` (captures output) and `run_git_inherited` (inherits stdio). Also contains `WorktreeInfo` struct and porcelain output parsing.
-- **`src/display.rs`** — Colored terminal output (using `colored` crate). Table formatting for worktree listings, summary stats, and user-facing messages (`print_ok`, `print_note`, `print_cd_hint`).
-- **`src/commands/`** — One file per subcommand (add, clone, dir, list, prune, remove, status). Each exports a `run` function re-exported from `commands/mod.rs`.
+- **`src/display.rs`** — Colored terminal output (using `colored` crate). Table formatting for worktree listings, summary stats, path shortening (`shorten_path`), and user-facing messages (`print_ok`, `print_note`, `print_cd_hint`).
+- **`src/commands/`** — One file per subcommand (add, clone, dir, fetch, init, list, prune, remove, status). Each exports a `run` function re-exported from `commands/mod.rs`.
 
 ## Key conventions
 

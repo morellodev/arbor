@@ -13,6 +13,9 @@ pub enum Command {
     Add {
         /// Branch name to create a worktree for
         branch: String,
+        /// Repository name (resolve against ~/.arbor/repos/) to add from any directory
+        #[arg(long)]
+        repo: Option<String>,
     },
 
     /// List worktrees for the current repository
@@ -21,6 +24,9 @@ pub enum Command {
         /// Show worktrees for all repositories
         #[arg(long)]
         all: bool,
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
     },
 
     /// Remove the worktree for a branch
@@ -31,6 +37,9 @@ pub enum Command {
         /// Force removal even if the worktree is dirty
         #[arg(long, short)]
         force: bool,
+        /// Also delete the local branch after removing the worktree
+        #[arg(long, short)]
+        delete_branch: bool,
     },
 
     /// Print the filesystem path of the worktree for a branch
@@ -43,11 +52,33 @@ pub enum Command {
     Clone {
         /// Repository URL or "user/repo" shorthand (defaults to GitHub)
         url: String,
+        /// Don't create a worktree for the default branch after cloning
+        #[arg(long)]
+        no_worktree: bool,
     },
 
     /// Remove references to stale worktrees
     Prune,
 
     /// Show the status of all worktrees (dirty/clean, ahead/behind)
-    Status,
+    Status {
+        /// Show compact one-line-per-worktree output (no paths)
+        #[arg(long)]
+        short: bool,
+    },
+
+    /// Fetch from origin in the current bare repo
+    Fetch,
+
+    /// Print shell integration snippet for eval
+    Init {
+        /// Shell to generate integration for (bash, zsh, fish)
+        shell: String,
+    },
+
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        shell: clap_complete::Shell,
+    },
 }

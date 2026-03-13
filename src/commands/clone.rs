@@ -6,7 +6,7 @@ use colored::Colorize;
 use crate::config::Config;
 use crate::{display, git};
 
-pub fn run(config: &Config, url: &str) -> Result<()> {
+pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
     let url = expand_shorthand(url);
     let name = repo_name_from_url(&url)?;
     let bare_name = format!("{name}.git");
@@ -23,11 +23,39 @@ pub fn run(config: &Config, url: &str) -> Result<()> {
         )
     })?;
 
+    eprintln!("{}", "Cloning bare repository...".dimmed());
     git::clone_bare(&url, &dest)?;
     git::configure_bare_fetch(&dest)?;
+
+    eprintln!("{}", "Fetching remote branches...".dimmed());
     git::fetch_origin(&dest)?;
 
-    display::print_ok(&format!("Bare repo ready at {}", dest.display()));
+    display::print_ok(&format!(
+        "Bare repo ready at {}",
+        display::shorten_path(&dest)
+    ));
+
+    if !no_worktree {
+        if let Ok(default_branch) = git::head_branch(&dest) {
+            let sanitized = default_branch.replace('/', "-");
+            let wt_path = config.worktree_dir.join(&name).join(&sanitized);
+
+            fs::create_dir_all(wt_path.parent().unwrap()).with_context(|| {
+                format!("failed to create directory: {}", wt_path.display())
+            })?;
+
+            git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
+            display::print_ok(&format!(
+                "Worktree created for '{}' at {}",
+                default_branch,
+                display::shorten_path(&wt_path)
+            ));
+            println!("{}", wt_path.display());
+            display::print_cd_hint(&wt_path);
+            return Ok(());
+        }
+    }
+
     println!("{}", dest.display());
     eprintln!("{}", "Next steps:".bold());
     display::print_cd_hint(&dest);

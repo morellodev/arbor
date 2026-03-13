@@ -6,8 +6,14 @@ use colored::Colorize;
 
 use crate::{config::Config, display, git};
 
-pub fn run(config: &Config, all: bool) -> Result<()> {
-    if all {
+pub fn run(config: &Config, all: bool, json: bool) -> Result<()> {
+    if json {
+        if all {
+            list_all_repos_json(config)
+        } else {
+            list_repo_json(None)
+        }
+    } else if all {
         list_all_repos(config)
     } else {
         list_repo(None)
@@ -38,9 +44,13 @@ fn list_all_repos(config: &Config) -> Result<()> {
         return Ok(());
     }
 
+    let mut entries: Vec<_> = fs::read_dir(repos_dir)?
+        .filter_map(|e| e.ok())
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
     let mut found = false;
-    for entry in fs::read_dir(repos_dir)? {
-        let entry = entry?;
+    for entry in entries {
         let path = entry.path();
         if path.is_dir() {
             let name = path
@@ -70,4 +80,91 @@ fn list_all_repos(config: &Config) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn list_repo_json(cwd: Option<&Path>) -> Result<()> {
+    let worktrees = git::worktree_infos(cwd)?;
+    let json: Vec<serde_json::Value> = worktrees
+        .iter()
+        .map(|wt| worktree_to_json(wt))
+        .collect();
+    println!("{}", serde_json::to_string_pretty(&json)?);
+    Ok(())
+}
+
+fn list_all_repos_json(config: &Config) -> Result<()> {
+    let repos_dir = &config.repos_dir;
+    let mut result = serde_json::Map::new();
+
+    if repos_dir.exists() {
+        let mut entries: Vec<_> = fs::read_dir(repos_dir)?
+            .filter_map(|e| e.ok())
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in entries {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
+                let display_name = name.strip_suffix(".git").unwrap_or(&name).to_string();
+
+                if let Ok(worktrees) = git::worktree_infos(Some(&path)) {
+                    if !worktrees.is_empty() {
+                        let json: Vec<serde_json::Value> = worktrees
+                            .iter()
+                            .map(|wt| worktree_to_json(wt))
+                            .collect();
+                        result.insert(display_name, serde_json::Value::Array(json));
+                    }
+                }
+            }
+        }
+    }
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::Value::Object(result))?
+    );
+    Ok(())
+}
+
+fn worktree_to_json(wt: &git::WorktreeInfo) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    obj.insert(
+        "path".to_string(),
+        serde_json::Value::String(wt.path.display().to_string()),
+    );
+    obj.insert(
+        "branch".to_string(),
+        match &wt.branch {
+            Some(b) => serde_json::Value::String(b.clone()),
+            None => serde_json::Value::Null,
+        },
+    );
+    obj.insert(
+        "dirty".to_string(),
+        serde_json::Value::Bool(wt.is_dirty()),
+    );
+    if let Some((ahead, behind)) = wt.tracking {
+        let mut tracking = serde_json::Map::new();
+        tracking.insert(
+            "ahead".to_string(),
+            serde_json::Value::Number(ahead.into()),
+        );
+        tracking.insert(
+            "behind".to_string(),
+            serde_json::Value::Number(behind.into()),
+        );
+        obj.insert(
+            "tracking".to_string(),
+            serde_json::Value::Object(tracking),
+        );
+    } else {
+        obj.insert("tracking".to_string(), serde_json::Value::Null);
+    }
+    serde_json::Value::Object(obj)
 }

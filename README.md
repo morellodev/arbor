@@ -2,13 +2,34 @@
 
 A friendly CLI for managing git worktrees. Arbor keeps all your worktrees organized in a single location (`~/.arbor/worktrees`) so you can switch between branches without stashing, committing, or losing context.
 
+## Prerequisites
+
+- [Rust](https://www.rust-lang.org/tools/install) (1.85+ for the 2024 edition)
+- [Git](https://git-scm.com/) (any recent version with worktree support)
+
 ## Install
 
+**From source (local clone):**
+
 ```sh
+git clone https://github.com/morellodev/arbor-cli.git
+cd arbor-cli
 cargo install --path .
 ```
 
-This places the `arbor` binary in `~/.cargo/bin/`.
+**From crates.io** (once published):
+
+```sh
+cargo install arbor-cli
+```
+
+This places the `arbor` binary in `~/.cargo/bin/`. Make sure it's on your `PATH` (it is by default with a standard Rust installation).
+
+To uninstall:
+
+```sh
+cargo uninstall arbor-cli
+```
 
 ## Quick start
 

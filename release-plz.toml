@@ -6,3 +6,5 @@ git_release_enable = false
 git_tag_name = "v{{ version }}"
 # Use conventional commits to determine version bumps and generate changelog
 changelog_update = true
+# Only open release PRs for user-facing changes
+release_commits = "^(feat|fix|refactor|perf)"

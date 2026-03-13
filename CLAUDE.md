@@ -33,7 +33,7 @@ cargo test <test_name>         # Run a single test by name
 - Branch slashes become dashes in directory names (e.g., `feature/auth` → `feature-auth`).
 - Error handling uses `anyhow::Result` throughout.
 - Rust edition 2024.
-- Commit messages follow [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`. Use `feat!:` or a `BREAKING CHANGE:` footer for breaking changes.
+- Commit messages follow [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `ci:`, `docs:`, `refactor:`, `test:`. Use `feat!:` or a `BREAKING CHANGE:` footer for breaking changes. Only `feat:` and `fix:` trigger version bumps — use `ci:` for CI/workflow changes and `chore:` for other non-user-facing changes.
 
 ## Releasing
 

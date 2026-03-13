@@ -18,10 +18,10 @@ pub fn print_cd_hint(path: &Path) {
 }
 
 pub fn shorten_path(path: &Path) -> String {
-    if let Some(home) = dirs::home_dir() {
-        if let Ok(relative) = path.strip_prefix(&home) {
-            return format!("~/{}", relative.display());
-        }
+    if let Some(home) = dirs::home_dir()
+        && let Ok(relative) = path.strip_prefix(&home)
+    {
+        return format!("~/{}", relative.display());
     }
     path.display().to_string()
 }

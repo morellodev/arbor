@@ -15,11 +15,11 @@ pub fn run(branch: &str) -> Result<()> {
 
     let sanitized_input = git::sanitize_branch(branch);
     for wt in &worktrees {
-        if let Some(b) = wt.branch.as_deref() {
-            if git::sanitize_branch(b) == sanitized_input {
-                println!("{}", wt.path.display());
-                return Ok(());
-            }
+        if let Some(b) = wt.branch.as_deref()
+            && git::sanitize_branch(b) == sanitized_input
+        {
+            println!("{}", wt.path.display());
+            return Ok(());
         }
     }
 

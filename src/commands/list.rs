@@ -49,13 +49,13 @@ fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
             .into_owned();
         let display_name = git::strip_git_suffix(&name).to_string();
 
-        if let Ok(worktrees) = git::worktree_infos(Some(&path)) {
-            if !worktrees.is_empty() {
-                repos.push(RepoEntry {
-                    display_name,
-                    worktrees,
-                });
-            }
+        if let Ok(worktrees) = git::worktree_infos(Some(&path))
+            && !worktrees.is_empty()
+        {
+            repos.push(RepoEntry {
+                display_name,
+                worktrees,
+            });
         }
     }
 

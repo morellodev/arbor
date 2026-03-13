@@ -60,9 +60,9 @@ fn config_dir() -> Result<PathBuf> {
 
 fn expand_tilde(path: &Path) -> Result<PathBuf> {
     let s = path.to_string_lossy();
-    if s.starts_with('~') {
+    if let Some(stripped) = s.strip_prefix('~') {
         let home = dirs::home_dir().context("could not determine home directory")?;
-        Ok(home.join(s.strip_prefix("~/").unwrap_or(&s[1..])))
+        Ok(home.join(stripped.strip_prefix('/').unwrap_or(stripped)))
     } else {
         Ok(path.to_path_buf())
     }

@@ -35,24 +35,24 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
         display::shorten_path(&dest)
     ));
 
-    if !no_worktree {
-        if let Ok(default_branch) = git::head_branch(&dest) {
-            let wt_path = config.worktree_path(&name, &default_branch);
+    if !no_worktree
+        && let Ok(default_branch) = git::head_branch(&dest)
+    {
+        let wt_path = config.worktree_path(&name, &default_branch);
 
-            fs::create_dir_all(wt_path.parent().unwrap()).with_context(|| {
-                format!("failed to create directory: {}", wt_path.display())
-            })?;
+        fs::create_dir_all(wt_path.parent().unwrap()).with_context(|| {
+            format!("failed to create directory: {}", wt_path.display())
+        })?;
 
-            git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
-            display::print_ok(&format!(
-                "Worktree created for '{}' at {}",
-                default_branch,
-                display::shorten_path(&wt_path)
-            ));
-            println!("{}", wt_path.display());
-            display::print_cd_hint(&wt_path);
-            return Ok(());
-        }
+        git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
+        display::print_ok(&format!(
+            "Worktree created for '{}' at {}",
+            default_branch,
+            display::shorten_path(&wt_path)
+        ));
+        println!("{}", wt_path.display());
+        display::print_cd_hint(&wt_path);
+        return Ok(());
     }
 
     println!("{}", dest.display());

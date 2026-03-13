@@ -235,7 +235,7 @@ pub struct WorktreeInfo {
     pub tracking: Option<(usize, usize)>,
 }
 
-fn serialize_path<S: serde::Serializer>(path: &PathBuf, s: S) -> Result<S::Ok, S::Error> {
+fn serialize_path<S: serde::Serializer>(path: &Path, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(&path.display().to_string())
 }
 

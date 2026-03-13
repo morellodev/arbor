@@ -28,10 +28,18 @@ impl TestEnv {
         )
         .unwrap();
 
-        git(&repo, &["init"]);
-        git(&repo, &["config", "user.email", "test@test.com"]);
-        git(&repo, &["config", "user.name", "Test"]);
-        git(&repo, &["commit", "--allow-empty", "-m", "init"]);
+        git(&repo, &["init"], home.path());
+        git(
+            &repo,
+            &["config", "user.email", "test@test.com"],
+            home.path(),
+        );
+        git(&repo, &["config", "user.name", "Test"], home.path());
+        git(
+            &repo,
+            &["commit", "--allow-empty", "-m", "init"],
+            home.path(),
+        );
 
         Self { home, repo }
     }
@@ -49,10 +57,12 @@ impl TestEnv {
     }
 }
 
-fn git(dir: &TempDir, args: &[&str]) {
+fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {
     let output = Command::new("git")
         .args(args)
         .current_dir(dir.path())
+        .env("HOME", home)
+        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .unwrap();
     assert!(
@@ -188,8 +198,12 @@ fn list_shows_worktrees() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("[feat]"),
-        "list output should contain the branch name, got: {stdout}"
+        stdout.contains("Branch"),
+        "list output should include the header, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("feat"),
+        "list output should include the branch name, got: {stdout}"
     );
 }
 

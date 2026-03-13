@@ -3,6 +3,8 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
+const STATUS_PREVIEW_LINES: usize = 4;
+
 fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
     let mut cmd = Command::new("git");
     cmd.args(args);
@@ -88,10 +90,6 @@ pub fn worktree_list_porcelain(cwd: Option<&Path>) -> Result<String> {
     run_git(&["worktree", "list", "--porcelain"], cwd)
 }
 
-pub fn worktree_list(cwd: Option<&Path>) -> Result<String> {
-    run_git(&["worktree", "list"], cwd)
-}
-
 pub fn worktree_remove(path: &Path, force: bool) -> Result<()> {
     let path_str = path.to_string_lossy();
     if force {
@@ -163,7 +161,6 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>)> {
             current_path = Some(PathBuf::from(path));
             current_branch = None;
         } else if let Some(branch_ref) = line.strip_prefix("branch ") {
-            // refs/heads/main → main
             current_branch = Some(
                 branch_ref
                     .strip_prefix("refs/heads/")
@@ -178,6 +175,52 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<(PathBuf, Option<String>)> {
     }
 
     results
+}
+
+pub struct WorktreeInfo {
+    pub path: PathBuf,
+    pub branch: Option<String>,
+    pub status_preview: Vec<String>,
+    pub tracking: Option<(usize, usize)>,
+}
+
+impl WorktreeInfo {
+    pub fn is_dirty(&self) -> bool {
+        !self.status_preview.is_empty()
+    }
+
+    pub fn status_truncated(&self) -> bool {
+        self.status_preview.len() > STATUS_PREVIEW_LINES
+    }
+}
+
+pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
+    let porcelain = worktree_list_porcelain(cwd)?;
+    let entries = parse_worktree_list(&porcelain);
+
+    let mut results = Vec::new();
+    for (path, branch) in entries {
+        let tracking = ahead_behind(&path);
+        results.push(WorktreeInfo {
+            status_preview: status_preview(&path),
+            path,
+            branch,
+            tracking,
+        });
+    }
+
+    Ok(results)
+}
+
+fn status_preview(path: &Path) -> Vec<String> {
+    match status_porcelain(path) {
+        Ok(output) if !output.is_empty() => output
+            .lines()
+            .take(STATUS_PREVIEW_LINES + 1)
+            .map(|line| line.to_string())
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 #[cfg(test)]

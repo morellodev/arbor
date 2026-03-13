@@ -1,9 +1,9 @@
 use anyhow::Result;
 
-use crate::git;
+use crate::{display, git};
 
 pub fn run() -> Result<()> {
     git::worktree_prune()?;
-    eprintln!("Stale worktrees pruned.");
+    display::print_ok("Stale worktrees pruned.");
     Ok(())
 }

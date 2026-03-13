@@ -1,9 +1,10 @@
 use std::fs;
 
 use anyhow::{Context, Result, bail};
+use colored::Colorize;
 
 use crate::config::Config;
-use crate::git;
+use crate::{display, git};
 
 pub fn run(config: &Config, url: &str) -> Result<()> {
     let url = expand_shorthand(url);
@@ -26,8 +27,14 @@ pub fn run(config: &Config, url: &str) -> Result<()> {
     git::configure_bare_fetch(&dest)?;
     git::fetch_origin(&dest)?;
 
-    eprintln!("Bare repo ready at {}", dest.display());
+    display::print_ok(&format!("Bare repo ready at {}", dest.display()));
     println!("{}", dest.display());
+    eprintln!("{}", "Next steps:".bold());
+    display::print_cd_hint(&dest);
+    eprintln!(
+        "  {}",
+        "arbor add <branch>  # create a worktree from the cloned repo".dimmed()
+    );
     Ok(())
 }
 

@@ -1,18 +1,34 @@
 use std::fs;
+use std::path::Path;
 
 use anyhow::Result;
+use colored::Colorize;
 
-use crate::config::Config;
-use crate::git;
+use crate::{config::Config, display, git};
 
 pub fn run(config: &Config, all: bool) -> Result<()> {
     if all {
         list_all_repos(config)
     } else {
-        let output = git::worktree_list(None)?;
-        println!("{output}");
-        Ok(())
+        list_repo(None)
     }
+}
+
+fn list_repo(cwd: Option<&Path>) -> Result<()> {
+    let worktrees = git::worktree_infos(cwd)?;
+    if worktrees.is_empty() {
+        eprintln!("No worktrees found for this repository.");
+        return Ok(());
+    }
+
+    let label = git::repo_name()
+        .map(|name| format!("Repo {name}"))
+        .unwrap_or_else(|_| "Current repository".to_string());
+
+    let summary = display::summarize(&worktrees);
+    println!("{}", display::format_summary(&label, &summary));
+    display::print_table(&worktrees, false);
+    Ok(())
 }
 
 fn list_all_repos(config: &Config) -> Result<()> {
@@ -34,13 +50,16 @@ fn list_all_repos(config: &Config) -> Result<()> {
                 .into_owned();
             let display_name = name.strip_suffix(".git").unwrap_or(&name);
 
-            match git::worktree_list(Some(&path)) {
-                Ok(output) => {
+            match git::worktree_infos(Some(&path)) {
+                Ok(worktrees) if !worktrees.is_empty() => {
                     found = true;
-                    eprintln!("# {display_name}");
-                    println!("{output}");
+                    println!("{}", format!("# {display_name}").bold());
+                    let summary = display::summarize(&worktrees);
+                    println!("{}", display::format_summary("Summary", &summary));
+                    display::print_table(&worktrees, false);
                     println!();
                 }
+                Ok(_) => {}
                 Err(_) => continue,
             }
         }

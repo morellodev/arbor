@@ -1,7 +1,7 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::config::Config;
-use crate::git;
+use crate::{display, git};
 
 pub fn run(config: &Config, branch: &str, force: bool) -> Result<()> {
     let repo_name = git::repo_name()?;
@@ -13,6 +13,6 @@ pub fn run(config: &Config, branch: &str, force: bool) -> Result<()> {
     }
 
     git::worktree_remove(&wt_path, force)?;
-    eprintln!("Worktree removed: {}", wt_path.display());
+    display::print_ok(&format!("Worktree removed: {}", wt_path.display()));
     Ok(())
 }

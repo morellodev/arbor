@@ -4,7 +4,7 @@ use std::io::IsTerminal;
 use anyhow::{Context, Result};
 
 use crate::config::Config;
-use crate::git;
+use crate::{display, git};
 
 pub fn run(config: &Config, branch: &str) -> Result<()> {
     let repo_name = git::repo_name()?;
@@ -12,7 +12,10 @@ pub fn run(config: &Config, branch: &str) -> Result<()> {
     let wt_path = config.worktree_dir.join(&repo_name).join(&sanitized);
 
     if wt_path.exists() {
-        eprintln!("Worktree already exists at {}", wt_path.display());
+        display::print_note(&format!(
+            "Worktree already exists at {}",
+            wt_path.display()
+        ));
         print_path_hint(&wt_path);
         return Ok(());
     }
@@ -29,14 +32,15 @@ pub fn run(config: &Config, branch: &str) -> Result<()> {
         git::worktree_add_new_branch(&wt_path, branch)?;
     }
 
-    eprintln!("Worktree created at {}", wt_path.display());
+    display::print_ok(&format!("Worktree created at {}", wt_path.display()));
     print_path_hint(&wt_path);
     Ok(())
 }
 
 fn print_path_hint(path: &std::path::Path) {
     if std::io::stdout().is_terminal() {
-        eprintln!("To switch to it, run:\n  cd {}", path.display());
+        eprintln!("To switch to it, run:");
+        display::print_cd_hint(path);
     } else {
         println!("{}", path.display());
     }

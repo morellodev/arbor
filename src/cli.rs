@@ -41,7 +41,7 @@ pub enum Command {
 
     /// Clone a repository as a bare repo for worktree-based workflows
     Clone {
-        /// Repository URL to clone
+        /// Repository URL or "user/repo" shorthand (defaults to GitHub)
         url: String,
     },
 

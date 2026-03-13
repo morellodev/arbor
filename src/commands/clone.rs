@@ -6,7 +6,8 @@ use crate::config::Config;
 use crate::git;
 
 pub fn run(config: &Config, url: &str) -> Result<()> {
-    let name = repo_name_from_url(url)?;
+    let url = expand_shorthand(url);
+    let name = repo_name_from_url(&url)?;
     let bare_name = format!("{name}.git");
     let dest = config.repos_dir.join(&bare_name);
 
@@ -21,13 +22,30 @@ pub fn run(config: &Config, url: &str) -> Result<()> {
         )
     })?;
 
-    git::clone_bare(url, &dest)?;
+    git::clone_bare(&url, &dest)?;
     git::configure_bare_fetch(&dest)?;
     git::fetch_origin(&dest)?;
 
     eprintln!("Bare repo ready at {}", dest.display());
     println!("{}", dest.display());
     Ok(())
+}
+
+/// Expand a "user/repo" shorthand into a full GitHub HTTPS URL.
+///
+/// Strings that already look like full URLs (contain "://") or SSH addresses
+/// (contain ":") are returned unchanged.
+fn expand_shorthand(input: &str) -> String {
+    if input.contains("://") || input.contains(':') {
+        return input.to_string();
+    }
+
+    let parts: Vec<&str> = input.splitn(3, '/').collect();
+    if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
+        return format!("https://github.com/{input}");
+    }
+
+    input.to_string()
 }
 
 /// Extract the repository name from a git URL.
@@ -85,5 +103,37 @@ mod tests {
     fn empty_url_does_not_panic() {
         let name = repo_name_from_url("").unwrap();
         assert_eq!(name, "");
+    }
+
+    #[test]
+    fn shorthand_expands_to_github_https() {
+        assert_eq!(
+            expand_shorthand("user/repo"),
+            "https://github.com/user/repo"
+        );
+    }
+
+    #[test]
+    fn shorthand_preserves_https_url() {
+        let url = "https://github.com/user/repo.git";
+        assert_eq!(expand_shorthand(url), url);
+    }
+
+    #[test]
+    fn shorthand_preserves_ssh_url() {
+        let url = "git@github.com:user/repo.git";
+        assert_eq!(expand_shorthand(url), url);
+    }
+
+    #[test]
+    fn shorthand_ignores_nested_path() {
+        let input = "org/group/repo";
+        assert_eq!(expand_shorthand(input), input);
+    }
+
+    #[test]
+    fn shorthand_ignores_bare_name() {
+        let input = "repo";
+        assert_eq!(expand_shorthand(input), input);
     }
 }

@@ -51,7 +51,6 @@ impl TestEnv {
         cmd.args(args);
         cmd
     }
-
 }
 
 fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {

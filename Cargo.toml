@@ -1,11 +1,8 @@
 [package]
-name = "arbor-cli"
+name = "arbor"
 version = "0.1.0"
 edition = "2024"
-
-[[bin]]
-name = "arbor"
-path = "src/main.rs"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.102"

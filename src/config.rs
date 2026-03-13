@@ -7,14 +7,14 @@ use serde::Deserialize;
 const CONFIG_DIR_NAME: &str = ".arbor";
 const CONFIG_FILE_NAME: &str = "config.toml";
 
-const DEFAULT_CONFIG: &str = r#"worktree_dir = "~/.arbor/worktrees"
-repos_dir = "~/.arbor/repos"
+const DEFAULT_CONFIG: &str = r#"repos_dir = "~/.arbor/repos"
+worktree_dir = "~/.arbor/worktrees"
 "#;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub worktree_dir: PathBuf,
     pub repos_dir: PathBuf,
+    pub worktree_dir: PathBuf,
 }
 
 impl Config {

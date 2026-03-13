@@ -10,8 +10,8 @@ A friendly CLI for managing git worktrees. Arbor keeps all your worktrees organi
 ## Install
 
 ```sh
-git clone https://github.com/morellodev/arbor-cli.git
-cd arbor-cli
+git clone https://github.com/morellodev/arbor.git
+cd arbor
 cargo install --path .
 ```
 

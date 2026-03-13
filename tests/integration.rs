@@ -116,16 +116,16 @@ fn add_sanitizes_branch_slashes() {
     );
 }
 
-// ── cd ───────────────────────────────────────────────────────────────
+// ── dir ──────────────────────────────────────────────────────────────
 
 #[test]
-fn cd_prints_worktree_path() {
+fn dir_prints_worktree_path() {
     let env = TestEnv::new();
 
     let add_out = env.arbor(&["add", "feat"]).output().unwrap();
     let add_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
 
-    let cd_out = env.arbor(&["cd", "feat"]).output().unwrap();
+    let cd_out = env.arbor(&["dir", "feat"]).output().unwrap();
     assert!(cd_out.status.success());
 
     let cd_path = String::from_utf8_lossy(&cd_out.stdout).trim().to_string();
@@ -133,9 +133,9 @@ fn cd_prints_worktree_path() {
 }
 
 #[test]
-fn cd_nonexistent_branch_fails() {
+fn dir_nonexistent_branch_fails() {
     let env = TestEnv::new();
-    let output = env.arbor(&["cd", "nonexistent"]).output().unwrap();
+    let output = env.arbor(&["dir", "nonexistent"]).output().unwrap();
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);

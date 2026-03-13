@@ -34,8 +34,7 @@ pub enum Command {
     },
 
     /// Print the filesystem path of the worktree for a branch
-    #[command(name = "cd")]
-    Cd {
+    Dir {
         /// Branch name to look up
         branch: String,
     },

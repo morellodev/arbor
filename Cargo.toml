@@ -3,6 +3,9 @@ name = "arbor"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "A friendly CLI for managing git worktrees"
+repository = "https://github.com/morellodev/arbor"
+authors = ["Dennis Morello"]
 
 [dependencies]
 anyhow = "1.0.102"

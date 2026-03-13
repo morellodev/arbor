@@ -33,6 +33,11 @@ cargo test <test_name>         # Run a single test by name
 - Branch slashes become dashes in directory names (e.g., `feature/auth` → `feature-auth`).
 - Error handling uses `anyhow::Result` throughout.
 - Rust edition 2024.
+- Commit messages follow [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`. Use `feat!:` or a `BREAKING CHANGE:` footer for breaking changes.
+
+## Releasing
+
+Releases are automated via [release-plz](https://release-plz.ieni.dev/). On each push to `main`, the `prepare-release.yml` workflow opens/updates a release PR with version bump and changelog. Merging that PR tags and triggers `release.yml`, which builds cross-platform binaries, creates a GitHub Release, and updates the Homebrew tap (`morellodev/homebrew-tap`).
 
 ## Maintaining this file
 

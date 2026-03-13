@@ -1,0 +1,7 @@
+[workspace]
+# Let release.yml handle builds, GitHub Release, and Homebrew tap update
+publish = false
+# Tag format
+git_tag_name = "v{{ version }}"
+# Use conventional commits to determine version bumps and generate changelog
+changelog_update = true

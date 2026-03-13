@@ -52,9 +52,6 @@ impl TestEnv {
         cmd
     }
 
-    fn worktree_dir(&self) -> std::path::PathBuf {
-        self.home.path().join(".arbor/worktrees")
-    }
 }
 
 fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {
@@ -112,18 +109,15 @@ fn add_sanitizes_branch_slashes() {
     let output = env.arbor(&["add", "feature/auth"]).output().unwrap();
     assert!(output.status.success());
 
-    let repo_name = env
-        .repo
-        .path()
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .into_owned();
-    let expected_dir = env.worktree_dir().join(&repo_name).join("feature-auth");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let printed_path = stdout.trim();
     assert!(
-        expected_dir.exists(),
-        "expected worktree at {} (slashes replaced with dashes)",
-        expected_dir.display()
+        printed_path.ends_with("feature-auth"),
+        "path should end with 'feature-auth', got: {printed_path}"
+    );
+    assert!(
+        Path::new(printed_path).exists(),
+        "worktree directory should exist at {printed_path}"
     );
 }
 

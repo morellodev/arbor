@@ -26,6 +26,10 @@ If you review PRs while working on your own feature, juggle hotfixes alongside l
 brew install morellodev/tap/arbor
 ```
 
+### Pre-built binaries (macOS, Linux, Windows)
+
+Download the latest binary for your platform from the [releases page](https://github.com/morellodev/arbor/releases/latest).
+
 ### From source
 
 ```sh
@@ -36,7 +40,6 @@ cargo install --path .
 
 You'll need [Rust](https://www.rust-lang.org/tools/install) 1.85+ and [Git](https://git-scm.com/).
 
-Pre-built binaries are also available on the [releases page](https://github.com/morellodev/arbor/releases/latest).
 
 ## Quick start
 

@@ -28,7 +28,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -48,7 +48,7 @@ jobs:
           else
             tar czf ../../../arbor-${{ matrix.target }}.tar.gz arbor
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6
         with:
           name: arbor-${{ matrix.target }}
           path: |
@@ -60,8 +60,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4.3
         with:
           merge-multiple: true
       - name: Create release
@@ -74,7 +74,7 @@ jobs:
     needs: release
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: morellodev/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}

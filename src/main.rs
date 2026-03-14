@@ -4,15 +4,22 @@ mod config;
 mod display;
 mod git;
 
+use std::io::IsTerminal;
 use std::process;
 
 use anyhow::Result;
-use clap::{CommandFactory, Parser};
+use clap::Parser;
 
 use cli::{Cli, Command};
 use config::Config;
 
 fn main() {
+    // colored checks stdout for TTY, but arbor writes all colored output to stderr.
+    // Force colors on when stderr is a terminal (e.g. stdout captured by shell wrapper).
+    if std::io::stderr().is_terminal() {
+        colored::control::set_override(true);
+    }
+
     if let Err(e) = run() {
         display::print_error(&format!("{e:#}"));
         process::exit(1);
@@ -43,10 +50,6 @@ fn run() -> Result<()> {
         Command::Prune => commands::prune(),
         Command::Status { short, all } => commands::status(&config, short, all),
         Command::Fetch { all } => commands::fetch(&config, all),
-        Command::Init { ref shell } => commands::init(shell),
-        Command::Completions { shell } => {
-            clap_complete::generate(shell, &mut Cli::command(), "arbor", &mut std::io::stdout());
-            Ok(())
-        }
+        Command::Init { ref shell } => commands::init(shell.as_deref()),
     }
 }

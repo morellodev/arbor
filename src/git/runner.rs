@@ -16,11 +16,11 @@ pub(super) fn run_git_output(args: &[&str], cwd: Option<&Path>) -> Result<std::p
     }
     let output = cmd
         .output()
-        .with_context(|| format!("failed to run: git {}", args.join(" ")))?;
+        .with_context(|| format!("Failed to run: git {}", args.join(" ")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("git {} failed: {}", args.join(" "), stderr.trim());
+        bail!("Git {} failed: {}", args.join(" "), stderr.trim());
     }
 
     Ok(output)
@@ -34,10 +34,10 @@ pub(super) fn run_git_inherited(args: &[&str], cwd: Option<&Path>) -> Result<()>
     }
     let status = cmd
         .status()
-        .with_context(|| format!("failed to run: git {}", args.join(" ")))?;
+        .with_context(|| format!("Failed to run: git {}", args.join(" ")))?;
 
     if !status.success() {
-        bail!("git {} exited with status {}", args.join(" "), status);
+        bail!("Git {} exited with status {}", args.join(" "), status);
     }
 
     Ok(())

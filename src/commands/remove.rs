@@ -7,7 +7,7 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
     let wt_path = config.worktree_path(&repo_name, branch);
 
     if !wt_path.exists() {
-        bail!("no worktree found at {}", wt_path.display());
+        bail!("No worktree found at {}", wt_path.display());
     }
 
     let actual_branch = if delete_branch {
@@ -21,7 +21,7 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
     };
 
     if !force && git::is_worktree_dirty(&wt_path) {
-        bail!("worktree has uncommitted changes. Use --force to remove anyway.");
+        bail!("Worktree has uncommitted changes. Use --force to remove anyway.");
     }
 
     git::worktree_remove(&wt_path, force)?;

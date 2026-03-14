@@ -1,13 +1,71 @@
+use std::io::IsTerminal;
+
 use anyhow::{Result, bail};
 
-pub fn run(shell: &str) -> Result<()> {
-    let snippet = match shell {
-        "bash" => format!("{SHELL_WRAPPER}\n{BASH_COMPLETIONS}"),
-        "zsh" => format!("{SHELL_WRAPPER}\n{ZSH_COMPLETIONS}"),
-        "fish" => FISH_SNIPPET.to_string(),
-        _ => bail!("unsupported shell: {shell} (supported: bash, zsh, fish)"),
+use crate::display;
+
+enum Shell {
+    Bash,
+    Zsh,
+    Fish,
+}
+
+impl Shell {
+    fn parse(s: &str) -> Result<Self> {
+        match s {
+            "bash" => Ok(Self::Bash),
+            "zsh" => Ok(Self::Zsh),
+            "fish" => Ok(Self::Fish),
+            _ => bail!("Unsupported shell: {s} (supported: bash, zsh, fish)"),
+        }
+    }
+
+    fn detect() -> Result<Self> {
+        let shell_env = std::env::var("SHELL").ok().filter(|s| !s.is_empty());
+        let Some(shell_env) = shell_env else {
+            bail!("Could not detect shell. Specify it explicitly: arbor init bash|zsh|fish");
+        };
+        let name = shell_env.rsplit('/').next().unwrap_or("");
+        Self::parse(name).map_err(|_| {
+            anyhow::anyhow!(
+                "Unsupported shell: {name}. Specify it explicitly: arbor init bash|zsh|fish"
+            )
+        })
+    }
+}
+
+pub fn run(shell: Option<&str>) -> Result<()> {
+    let shell = match shell {
+        Some(s) => Shell::parse(s)?,
+        None => Shell::detect()?,
     };
-    print!("{snippet}");
+
+    if std::io::stdout().is_terminal() {
+        print_setup_instructions(&shell)
+    } else {
+        print_script(&shell)
+    }
+}
+
+fn print_setup_instructions(shell: &Shell) -> Result<()> {
+    let (config_file, eval_line) = match shell {
+        Shell::Bash => ("~/.bashrc", r#"eval "$(arbor init bash)""#),
+        Shell::Zsh => ("~/.zshrc", r#"eval "$(arbor init zsh)""#),
+        Shell::Fish => ("~/.config/fish/config.fish", "arbor init fish | source"),
+    };
+
+    display::print_note(&format!("Add the following to {config_file}:"));
+    display::print_hint(eval_line);
+
+    Ok(())
+}
+
+fn print_script(shell: &Shell) -> Result<()> {
+    match shell {
+        Shell::Bash => print!("{SHELL_WRAPPER}\n{BASH_COMPLETIONS}"),
+        Shell::Zsh => print!("{SHELL_WRAPPER}\n{ZSH_COMPLETIONS}"),
+        Shell::Fish => print!("{FISH_SNIPPET}"),
+    }
     Ok(())
 }
 
@@ -29,7 +87,7 @@ _arbor() {
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
-  subcmds="add switch list ls remove rm dir clone prune status fetch init completions"
+  subcmds="add switch list ls remove rm dir clone prune status fetch init help"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=($(compgen -W "$subcmds" -- "$cur"))
@@ -54,7 +112,7 @@ complete -F _arbor arbor
 
 const ZSH_COMPLETIONS: &str = r#"
 _arbor() {
-  local -a subcmds=(add switch list ls remove rm dir clone prune status fetch init completions)
+  local -a subcmds=(add switch list ls remove rm dir clone prune status fetch init help)
   if (( CURRENT == 2 )); then
     _describe 'command' subcmds
     return
@@ -94,8 +152,8 @@ complete -c arbor -n '__fish_use_subcommand' -f -a 'clone' -d 'Clone a repositor
 complete -c arbor -n '__fish_use_subcommand' -f -a 'prune' -d 'Remove stale worktree references'
 complete -c arbor -n '__fish_use_subcommand' -f -a 'status' -d 'Show worktree status'
 complete -c arbor -n '__fish_use_subcommand' -f -a 'fetch' -d 'Fetch from origin'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'init' -d 'Print shell integration snippet'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'completions' -d 'Generate shell completions'
+complete -c arbor -n '__fish_use_subcommand' -f -a 'init' -d 'Set up shell integration'
+complete -c arbor -n '__fish_use_subcommand' -f -a 'help' -d 'Print help'
 
 complete -c arbor -n '__fish_seen_subcommand_from add' -f -a '(git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/ 2>/dev/null | string replace -r "^origin/" "" | sort -u)'
 

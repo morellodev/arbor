@@ -1,7 +1,6 @@
 use std::fs;
 
 use anyhow::{Context, Result, bail};
-use colored::Colorize;
 
 use crate::config::Config;
 use crate::{display, git};
@@ -13,12 +12,12 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
     let dest = config.repos_dir.join(&bare_name);
 
     if dest.exists() {
-        bail!("repository already exists at {}", dest.display());
+        bail!("Repository already exists at {}", dest.display());
     }
 
     fs::create_dir_all(&config.repos_dir).with_context(|| {
         format!(
-            "failed to create repos directory: {}",
+            "Failed to create repos directory: {}",
             config.repos_dir.display()
         )
     })?;
@@ -36,7 +35,7 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
         let wt_path = config.worktree_path(&name, &default_branch);
 
         fs::create_dir_all(wt_path.parent().unwrap())
-            .with_context(|| format!("failed to create directory: {}", wt_path.display()))?;
+            .with_context(|| format!("Failed to create directory: {}", wt_path.display()))?;
 
         git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
         display::print_ok(&format!(
@@ -49,12 +48,9 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
     }
 
     println!("{}", dest.display());
-    eprintln!("{}", "Next steps:".bold());
+    display::print_heading("Next steps:");
     display::print_cd_hint(&dest);
-    eprintln!(
-        "  {}",
-        "arbor add <branch>  # create a worktree from the cloned repo".dimmed()
-    );
+    display::print_hint("arbor add <branch>  # create a worktree from the cloned repo");
     Ok(())
 }
 
@@ -87,7 +83,7 @@ fn repo_name_from_url(url: &str) -> Result<String> {
     } else {
         url.rsplit(':').next()
     }
-    .context("could not extract repository name from URL")?;
+    .context("Could not extract repository name from URL")?;
 
     Ok(git::strip_git_suffix(segment).to_string())
 }

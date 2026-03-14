@@ -17,8 +17,20 @@ pub fn print_note(msg: &str) {
     eprintln!("{} {msg}", "▸".dimmed());
 }
 
+pub fn print_heading(text: &str) {
+    eprintln!("{}", text.bold());
+}
+
+pub fn print_section(name: &str) {
+    eprintln!("{}{}", "# ".bold(), name.bold());
+}
+
+pub fn print_hint(text: &str) {
+    eprintln!("  {}", text.dimmed());
+}
+
 pub fn print_cd_hint(path: &Path) {
-    eprintln!("  {}", format!("cd {}", shorten_path(path)).dimmed());
+    print_hint(&format!("cd {}", shorten_path(path)));
 }
 
 pub fn print_path_hint(path: &Path) {

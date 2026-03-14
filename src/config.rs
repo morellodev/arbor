@@ -31,20 +31,20 @@ impl Config {
         if !config_path.exists() {
             fs::create_dir_all(&config_dir).with_context(|| {
                 format!(
-                    "failed to create config directory: {}",
+                    "Failed to create config directory: {}",
                     config_dir.display()
                 )
             })?;
             fs::write(&config_path, DEFAULT_CONFIG).with_context(|| {
-                format!("failed to write default config: {}", config_path.display())
+                format!("Failed to write default config: {}", config_path.display())
             })?;
         }
 
         let raw = fs::read_to_string(&config_path)
-            .with_context(|| format!("failed to read config: {}", config_path.display()))?;
+            .with_context(|| format!("Failed to read config: {}", config_path.display()))?;
 
         let mut config: Config =
-            toml::from_str(&raw).with_context(|| "failed to parse config.toml")?;
+            toml::from_str(&raw).with_context(|| "Failed to parse config.toml")?;
 
         config.worktree_dir = expand_tilde(&config.worktree_dir)?;
         config.repos_dir = expand_tilde(&config.repos_dir)?;
@@ -54,14 +54,14 @@ impl Config {
 }
 
 fn config_dir() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("could not determine home directory")?;
+    let home = dirs::home_dir().context("Could not determine home directory")?;
     Ok(home.join(CONFIG_DIR_NAME))
 }
 
 fn expand_tilde(path: &Path) -> Result<PathBuf> {
     let s = path.to_string_lossy();
     if let Some(stripped) = s.strip_prefix('~') {
-        let home = dirs::home_dir().context("could not determine home directory")?;
+        let home = dirs::home_dir().context("Could not determine home directory")?;
         Ok(home.join(stripped.strip_prefix('/').unwrap_or(stripped)))
     } else {
         Ok(path.to_path_buf())

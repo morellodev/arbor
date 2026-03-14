@@ -6,7 +6,7 @@ pub fn run(branch: &str) -> Result<()> {
     let (path, actual_branch) = match git::resolve_worktree_branch(branch, None) {
         Ok(result) => result,
         Err(_) => {
-            bail!("no worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?")
+            bail!("No worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?")
         }
     };
 

@@ -177,7 +177,7 @@ fn dir_nonexistent_branch_fails() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("no worktree found"),
+        stderr.contains("No worktree found"),
         "expected error message, got: {stderr}"
     );
 }
@@ -221,7 +221,7 @@ fn remove_nonexistent_fails() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("no worktree found"),
+        stderr.contains("No worktree found"),
         "expected error message, got: {stderr}"
     );
 }
@@ -333,7 +333,7 @@ fn switch_nonexistent_fails() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("no worktree found"),
+        stderr.contains("No worktree found"),
         "expected error message, got: {stderr}"
     );
     assert!(
@@ -536,7 +536,7 @@ fn init_unsupported_shell_fails() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("unsupported shell"),
+        stderr.contains("Unsupported shell"),
         "should reject unsupported shell, got: {stderr}"
     );
 }

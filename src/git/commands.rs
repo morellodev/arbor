@@ -7,14 +7,14 @@ use super::types::{WorktreeInfo, parse_worktree_list, sanitize_branch};
 
 pub fn repo_toplevel() -> Result<PathBuf> {
     let porcelain = run_git(&["worktree", "list", "--porcelain"], None)
-        .context("not inside a git repository")?;
+        .context("Not inside a git repository")?;
     let first_line = porcelain
         .lines()
         .next()
-        .context("empty worktree list output")?;
+        .context("Empty worktree list output")?;
     let path = first_line
         .strip_prefix("worktree ")
-        .context("unexpected worktree list format")?;
+        .context("Unexpected worktree list format")?;
     Ok(PathBuf::from(path))
 }
 
@@ -26,7 +26,7 @@ pub fn repo_name() -> Result<String> {
     let toplevel = repo_toplevel()?;
     let name = toplevel
         .file_name()
-        .context("repository path has no final component")?
+        .context("Repository path has no final component")?
         .to_string_lossy()
         .into_owned();
     Ok(super::strip_git_suffix(&name).to_string())
@@ -181,5 +181,5 @@ pub fn resolve_worktree_branch(branch: &str, cwd: Option<&Path>) -> Result<(Path
         }
     }
 
-    sanitized_match.ok_or_else(|| anyhow::anyhow!("no worktree found for branch '{branch}'"))
+    sanitized_match.ok_or_else(|| anyhow::anyhow!("No worktree found for branch '{branch}'"))
 }

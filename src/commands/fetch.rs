@@ -1,5 +1,4 @@
 use anyhow::Result;
-use colored::Colorize;
 
 use crate::config::Config;
 use crate::{display, git};
@@ -30,7 +29,7 @@ fn run_all(config: &Config) -> Result<()> {
     }
 
     for repo in &repos {
-        println!("{}", format!("# {}", repo.display_name).bold());
+        display::print_section(&repo.display_name);
         display::print_note("Fetching from origin...");
         match git::fetch_origin(&repo.path) {
             Ok(()) => display::print_ok("Fetch complete"),

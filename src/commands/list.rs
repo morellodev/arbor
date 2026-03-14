@@ -2,7 +2,6 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::Result;
-use colored::Colorize;
 
 use crate::{config::Config, display, git};
 
@@ -89,7 +88,7 @@ fn list_all_repos(config: &Config) -> Result<()> {
     }
 
     for repo in &repos {
-        println!("{}", format!("# {}", repo.display_name).bold());
+        display::print_section(&repo.display_name);
         let summary = display::summarize(&repo.worktrees);
         println!("{}", display::format_summary("Summary", &summary));
         display::print_table(&repo.worktrees, true);

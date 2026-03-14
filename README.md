@@ -40,7 +40,6 @@ cargo install --path .
 
 You'll need [Rust](https://www.rust-lang.org/tools/install) 1.85+ and [Git](https://git-scm.com/).
 
-
 ## Quick start
 
 ```sh
@@ -65,7 +64,18 @@ arbor rm -d feat/login
 
 ## Shell integration
 
-Add this so `arbor add`, `arbor switch`, and `arbor clone` automatically `cd` into the worktree:
+Run `arbor init` and it will show you what to add to your shell config:
+
+```sh
+arbor init
+# ▸ Add the following to ~/.zshrc:
+#
+#   eval "$(arbor init zsh)"
+```
+
+This sets up two things: a wrapper so `arbor add`, `arbor switch`, and `arbor clone` automatically `cd` into the worktree, and dynamic tab completions for branch names.
+
+The shell is auto-detected from `$SHELL`. You can also specify it explicitly:
 
 ```sh
 # ~/.zshrc or ~/.bashrc
@@ -74,8 +84,6 @@ eval "$(arbor init zsh)"    # or bash
 # Fish: ~/.config/fish/config.fish
 arbor init fish | source
 ```
-
-Without this, arbor prints the worktree path but won't change your directory. The shell integration also provides dynamic tab completions for branch names.
 
 ## Commands
 
@@ -90,8 +98,7 @@ Without this, arbor prints the worktree path but won't change your directory. Th
 | `arbor status [--short] [--all]` | | Show dirty/clean state and ahead/behind counts for all worktrees. `--all` shows across all repos. |
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
 | `arbor prune` | | Remove stale worktree references. |
-| `arbor init <shell>` | | Print shell integration snippet (bash, zsh, fish). |
-| `arbor completions <shell>` | | Generate shell completions (bash, zsh, fish, elvish, powershell). |
+| `arbor init [shell]` | | Set up shell integration (cd wrapper + completions). Auto-detects shell from `$SHELL`. |
 
 ## How it works
 
@@ -109,23 +116,6 @@ For a worktree-only workflow, start with `arbor clone` to set up a bare repo:
 arbor clone user/my-app
 arbor add feat/login
 ```
-
-## Shell completions
-
-Generate and install completions so you get tab completion for commands and options:
-
-```sh
-# Zsh (most common on macOS)
-arbor completions zsh > ~/.zsh/completions/_arbor
-
-# Bash
-arbor completions bash > ~/.local/share/bash-completion/completions/arbor
-
-# Fish
-arbor completions fish > ~/.config/fish/completions/arbor.fish
-```
-
-You may need to restart your shell or run `compinit` (zsh) for completions to take effect.
 
 ## Configuration
 

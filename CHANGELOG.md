@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.2](https://github.com/morellodev/arbor/compare/v0.1.1...v0.1.2) - 2026-03-14
+
+### Added
+
+- auto-cd and dynamic completions for shell init
+- add switch command and --all flag for status and fetch
+
+### Fixed
+
+- resolve branch names in remove and force-delete with -f -d
+
+### Other
+
+- bump GitHub Actions to Node 22 versions
+- add pre-built binaries install section to README
+- add integration tests for new features
+- add Windows binary to release pipeline
+- add usage examples to help text, update README and CLAUDE.md
+- extract shared helpers and clean up display
+- split git module into submodules
+
 ## [0.1.1](https://github.com/morellodev/arbor/compare/v0.1.0...v0.1.1) - 2026-03-13
 
 ### Added

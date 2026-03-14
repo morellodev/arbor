@@ -20,12 +20,13 @@ pub fn run(config: &Config, all: bool, json: bool) -> Result<()> {
     }
 }
 
-struct RepoEntry {
-    display_name: String,
-    worktrees: Vec<git::WorktreeInfo>,
+pub(crate) struct RepoEntry {
+    pub(crate) display_name: String,
+    pub(crate) path: std::path::PathBuf,
+    pub(crate) worktrees: Vec<git::WorktreeInfo>,
 }
 
-fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
+pub(crate) fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
     let repos_dir = &config.repos_dir;
     if !repos_dir.exists() {
         return Ok(Vec::new());
@@ -52,6 +53,7 @@ fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
         {
             repos.push(RepoEntry {
                 display_name,
+                path,
                 worktrees,
             });
         }

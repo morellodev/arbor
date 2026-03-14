@@ -18,6 +18,12 @@ pub enum Command {
         repo: Option<String>,
     },
 
+    /// Switch to an existing worktree
+    Switch {
+        /// Branch name to switch to
+        branch: String,
+    },
+
     /// List worktrees for the current repository
     #[command(visible_alias = "ls")]
     List {
@@ -65,10 +71,17 @@ pub enum Command {
         /// Show compact one-line-per-worktree output (no paths)
         #[arg(long)]
         short: bool,
+        /// Show status across all repositories
+        #[arg(long)]
+        all: bool,
     },
 
     /// Fetch from origin in the current bare repo
-    Fetch,
+    Fetch {
+        /// Fetch across all repositories
+        #[arg(long)]
+        all: bool,
+    },
 
     /// Print shell integration snippet for eval
     Init {

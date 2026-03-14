@@ -28,6 +28,7 @@ fn run() -> Result<()> {
             ref branch,
             ref repo,
         } => commands::add(&config, branch, repo.as_deref()),
+        Command::Switch { ref branch } => commands::switch(branch),
         Command::List { all, json } => commands::list(&config, all, json),
         Command::Remove {
             ref branch,
@@ -40,8 +41,8 @@ fn run() -> Result<()> {
             no_worktree,
         } => commands::clone(&config, url, no_worktree),
         Command::Prune => commands::prune(),
-        Command::Status { short } => commands::status(short),
-        Command::Fetch => commands::fetch(),
+        Command::Status { short, all } => commands::status(&config, short, all),
+        Command::Fetch { all } => commands::fetch(&config, all),
         Command::Init { ref shell } => commands::init(shell),
         Command::Completions { shell } => {
             clap_complete::generate(shell, &mut Cli::command(), "arbor", &mut std::io::stdout());

@@ -182,6 +182,19 @@ fn dir_nonexistent_branch_fails() {
     );
 }
 
+#[test]
+fn dir_resolves_sanitized_name() {
+    let env = TestEnv::new();
+    let add_out = env.arbor(&["add", "feature/auth"]).output().unwrap();
+    let add_path = fs::canonicalize(String::from_utf8_lossy(&add_out.stdout).trim()).unwrap();
+
+    let dir_out = env.arbor(&["dir", "feature-auth"]).output().unwrap();
+    assert!(dir_out.status.success());
+
+    let dir_path = fs::canonicalize(String::from_utf8_lossy(&dir_out.stdout).trim()).unwrap();
+    assert_eq!(add_path, dir_path);
+}
+
 // ── remove ───────────────────────────────────────────────────────────
 
 #[test]
@@ -213,7 +226,170 @@ fn remove_nonexistent_fails() {
     );
 }
 
+#[test]
+fn remove_with_delete_branch_resolves_sanitized_name() {
+    let env = TestEnv::new();
+
+    // Create a worktree for feature/auth (dir becomes feature-auth)
+    env.arbor(&["add", "feature/auth"]).output().unwrap();
+
+    // Remove using the sanitized name with -d to also delete the branch
+    let rm_out = env
+        .arbor(&["remove", "feature-auth", "-d"])
+        .output()
+        .unwrap();
+    assert!(rm_out.status.success());
+
+    let stderr = String::from_utf8_lossy(&rm_out.stderr);
+    assert!(
+        stderr.contains("Deleted branch 'feature/auth'"),
+        "should delete the actual branch name, got: {stderr}"
+    );
+}
+
+#[test]
+fn remove_force_delete_unmerged_branch() {
+    let env = TestEnv::new();
+
+    // Create a worktree and make a commit in it so the branch is "unmerged"
+    let add_out = env.arbor(&["add", "unmerged"]).output().unwrap();
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    // Make a commit in the worktree so the branch diverges
+    let output = Command::new("git")
+        .args(["commit", "--allow-empty", "-m", "wip"])
+        .current_dir(&wt_path)
+        .env("HOME", env.home.path())
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    // Force-remove the worktree and delete the unmerged branch
+    let rm_out = env
+        .arbor(&["remove", "unmerged", "-f", "-d"])
+        .output()
+        .unwrap();
+    assert!(rm_out.status.success());
+
+    let stderr = String::from_utf8_lossy(&rm_out.stderr);
+    assert!(
+        stderr.contains("Deleted branch"),
+        "should force-delete the branch, got: {stderr}"
+    );
+}
+
+#[test]
+fn remove_dirty_worktree_rejected() {
+    let env = TestEnv::new();
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    // Create an untracked file to make the worktree dirty
+    fs::write(Path::new(&wt_path).join("dirty.txt"), "dirty").unwrap();
+
+    let rm_out = env.arbor(&["remove", "feat"]).output().unwrap();
+    assert!(!rm_out.status.success());
+
+    let stderr = String::from_utf8_lossy(&rm_out.stderr);
+    assert!(
+        stderr.contains("uncommitted changes"),
+        "should reject dirty worktree, got: {stderr}"
+    );
+}
+
+#[test]
+fn remove_alias_rm_works() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["rm", "feat"]).output().unwrap();
+    assert!(output.status.success());
+}
+
+// ── switch ───────────────────────────────────────────────────────────
+
+#[test]
+fn switch_to_existing_worktree() {
+    let env = TestEnv::new();
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let add_path = fs::canonicalize(String::from_utf8_lossy(&add_out.stdout).trim()).unwrap();
+
+    let switch_out = env.arbor(&["switch", "feat"]).output().unwrap();
+    assert!(switch_out.status.success());
+
+    let switch_path = fs::canonicalize(String::from_utf8_lossy(&switch_out.stdout).trim()).unwrap();
+    assert_eq!(add_path, switch_path);
+}
+
+#[test]
+fn switch_nonexistent_fails() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["switch", "nonexistent"]).output().unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("no worktree found"),
+        "expected error message, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("arbor add"),
+        "expected hint about arbor add, got: {stderr}"
+    );
+}
+
+#[test]
+fn switch_with_sanitized_name() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feature/auth"]).output().unwrap();
+
+    let switch_out = env.arbor(&["switch", "feature-auth"]).output().unwrap();
+    assert!(
+        switch_out.status.success(),
+        "switch with sanitized name should succeed"
+    );
+}
+
 // ── list ─────────────────────────────────────────────────────────────
+
+#[test]
+fn list_alias_ls_works() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["ls"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("feat"),
+        "ls alias should list worktrees, got: {stdout}"
+    );
+}
+
+#[test]
+fn list_json_outputs_valid_json() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["list", "--json"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("should be valid JSON");
+    assert!(parsed.is_array(), "JSON output should be an array");
+
+    let arr = parsed.as_array().unwrap();
+    assert!(!arr.is_empty(), "should contain at least one worktree");
+    assert!(
+        arr[0].get("branch").is_some(),
+        "worktree entry should have a branch field"
+    );
+}
 
 #[test]
 fn list_shows_worktrees() {
@@ -246,6 +422,122 @@ fn status_shows_clean_worktree() {
     assert!(
         stdout.contains("clean"),
         "fresh repo should be clean, got: {stdout}"
+    );
+}
+
+#[test]
+fn status_short_omits_paths() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["status", "--short"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // --short should not include the "Path" column header
+    assert!(
+        !stdout.contains("Path"),
+        "short output should omit paths, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("clean"),
+        "should still show status, got: {stdout}"
+    );
+}
+
+#[test]
+fn status_detects_dirty_worktree() {
+    let env = TestEnv::new();
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    // Make the worktree dirty
+    fs::write(Path::new(&wt_path).join("dirty.txt"), "dirty").unwrap();
+
+    let output = env.arbor(&["status"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("dirty"),
+        "should detect dirty worktree, got: {stdout}"
+    );
+}
+
+#[test]
+fn status_all_succeeds_with_no_repos() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["status", "--all"]).output().unwrap();
+    assert!(output.status.success());
+}
+
+#[test]
+fn fetch_all_succeeds_with_no_repos() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["fetch", "--all"]).output().unwrap();
+    assert!(output.status.success());
+}
+
+// ── init ─────────────────────────────────────────────────────────────
+
+#[test]
+fn init_zsh_outputs_shell_function() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["init", "zsh"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("arbor()"),
+        "zsh init should define an arbor function, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("compdef"),
+        "zsh init should include completions, got: {stdout}"
+    );
+}
+
+#[test]
+fn init_bash_outputs_shell_function() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["init", "bash"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("arbor()"),
+        "bash init should define an arbor function, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("complete -F"),
+        "bash init should include completions, got: {stdout}"
+    );
+}
+
+#[test]
+fn init_fish_outputs_shell_function() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["init", "fish"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("function arbor"),
+        "fish init should define an arbor function, got: {stdout}"
+    );
+}
+
+#[test]
+fn init_unsupported_shell_fails() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["init", "nushell"]).output().unwrap();
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unsupported shell"),
+        "should reject unsupported shell, got: {stderr}"
     );
 }
 

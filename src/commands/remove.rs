@@ -10,6 +10,16 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
         bail!("no worktree found at {}", wt_path.display());
     }
 
+    let actual_branch = if delete_branch {
+        Some(
+            git::resolve_worktree_branch(branch, None)
+                .map(|(_, b)| b)
+                .unwrap_or_else(|_| branch.to_string()),
+        )
+    } else {
+        None
+    };
+
     if !force && git::is_worktree_dirty(&wt_path) {
         bail!("worktree has uncommitted changes. Use --force to remove anyway.");
     }
@@ -17,10 +27,12 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
     git::worktree_remove(&wt_path, force)?;
     display::print_ok(&format!("Removed {}", display::shorten_path(&wt_path)));
 
-    if delete_branch {
-        match git::delete_branch(branch, None) {
-            Ok(()) => display::print_ok(&format!("Deleted branch '{branch}'")),
-            Err(e) => display::print_error(&format!("Could not delete branch '{branch}': {e}")),
+    if let Some(actual_branch) = actual_branch {
+        match git::delete_branch(&actual_branch, force, None) {
+            Ok(()) => display::print_ok(&format!("Deleted branch '{actual_branch}'")),
+            Err(e) => {
+                display::print_error(&format!("Could not delete branch '{actual_branch}': {e}"))
+            }
         }
     }
 

@@ -128,8 +128,9 @@ pub fn head_branch(repo_path: &Path) -> Result<String> {
         .to_string())
 }
 
-pub fn delete_branch(branch: &str, cwd: Option<&Path>) -> Result<()> {
-    run_git(&["branch", "-d", branch], cwd)?;
+pub fn delete_branch(branch: &str, force: bool, cwd: Option<&Path>) -> Result<()> {
+    let flag = if force { "-D" } else { "-d" };
+    run_git(&["branch", flag, branch], cwd)?;
     Ok(())
 }
 

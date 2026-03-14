@@ -44,8 +44,7 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
             default_branch,
             display::shorten_path(&wt_path)
         ));
-        println!("{}", wt_path.display());
-        display::print_cd_hint(&wt_path);
+        display::print_path_hint(&wt_path);
         return Ok(());
     }
 

@@ -5,7 +5,7 @@ use crate::{display, git};
 pub fn run(short: bool) -> Result<()> {
     let worktrees = git::worktree_infos(None)?;
     if worktrees.is_empty() {
-        eprintln!("No worktrees found.");
+        display::print_note("No worktrees found.");
         return Ok(());
     }
 
@@ -14,10 +14,6 @@ pub fn run(short: bool) -> Result<()> {
     let summary = display::summarize(&worktrees);
     println!("{}", display::format_summary(&label, &summary));
 
-    if short {
-        display::print_short_table(&worktrees);
-    } else {
-        display::print_table(&worktrees);
-    }
+    display::print_table(&worktrees, !short);
     Ok(())
 }

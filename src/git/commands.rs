@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use super::runner::{run_git, run_git_inherited, run_git_output};
-use super::types::{WorktreeInfo, parse_worktree_list};
+use super::types::{WorktreeInfo, parse_worktree_list, sanitize_branch};
 
 pub fn repo_toplevel() -> Result<PathBuf> {
     let porcelain = run_git(&["worktree", "list", "--porcelain"], None)
@@ -160,4 +160,25 @@ pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
     }
 
     Ok(results)
+}
+
+pub fn resolve_worktree_branch(branch: &str, cwd: Option<&Path>) -> Result<(PathBuf, String)> {
+    let porcelain = worktree_list_porcelain(cwd)?;
+    let worktrees = parse_worktree_list(&porcelain);
+
+    let sanitized_input = sanitize_branch(branch);
+    let mut sanitized_match = None;
+
+    for wt in &worktrees {
+        if let Some(b) = wt.branch.as_deref() {
+            if b == branch {
+                return Ok((wt.path.clone(), branch.to_string()));
+            }
+            if sanitized_match.is_none() && sanitize_branch(b) == sanitized_input {
+                sanitized_match = Some((wt.path.clone(), b.to_string()));
+            }
+        }
+    }
+
+    sanitized_match.ok_or_else(|| anyhow::anyhow!("no worktree found for branch '{branch}'"))
 }

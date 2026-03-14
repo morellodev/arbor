@@ -1,6 +1,4 @@
 use std::fs;
-use std::io::IsTerminal;
-use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 
@@ -16,7 +14,7 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>) -> Result<()> {
             "Already exists at {}",
             display::shorten_path(&wt_path)
         ));
-        print_path_hint(&wt_path);
+        display::print_path_hint(&wt_path);
         return Ok(());
     }
 
@@ -46,7 +44,7 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>) -> Result<()> {
         ));
     }
 
-    print_path_hint(&wt_path);
+    display::print_path_hint(&wt_path);
     Ok(())
 }
 
@@ -67,14 +65,5 @@ fn resolve_repo(
             let name = git::repo_name()?;
             Ok((name, None))
         }
-    }
-}
-
-fn print_path_hint(path: &Path) {
-    if std::io::stdout().is_terminal() {
-        eprintln!("To switch to it, run:");
-        display::print_cd_hint(path);
-    } else {
-        println!("{}", path.display());
     }
 }

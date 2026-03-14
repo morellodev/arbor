@@ -36,10 +36,10 @@ fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
 
     let mut repos = Vec::new();
     for entry in dir_entries {
-        let path = entry.path();
-        if !path.is_dir() {
+        if !entry.file_type().is_ok_and(|ft| ft.is_dir()) {
             continue;
         }
+        let path = entry.path();
         let name = path
             .file_name()
             .unwrap_or_default()
@@ -63,7 +63,7 @@ fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
 fn list_repo(cwd: Option<&Path>) -> Result<()> {
     let worktrees = git::worktree_infos(cwd)?;
     if worktrees.is_empty() {
-        eprintln!("No worktrees found for this repository.");
+        display::print_note("No worktrees found.");
         return Ok(());
     }
 
@@ -71,7 +71,7 @@ fn list_repo(cwd: Option<&Path>) -> Result<()> {
 
     let summary = display::summarize(&worktrees);
     println!("{}", display::format_summary(&label, &summary));
-    display::print_table(&worktrees);
+    display::print_table(&worktrees, true);
     Ok(())
 }
 
@@ -79,7 +79,10 @@ fn list_all_repos(config: &Config) -> Result<()> {
     let repos = scan_repos(config)?;
 
     if repos.is_empty() {
-        eprintln!("No repositories found in {}", config.repos_dir.display());
+        display::print_note(&format!(
+            "No repositories found in {}",
+            config.repos_dir.display()
+        ));
         return Ok(());
     }
 
@@ -87,7 +90,7 @@ fn list_all_repos(config: &Config) -> Result<()> {
         println!("{}", format!("# {}", repo.display_name).bold());
         let summary = display::summarize(&repo.worktrees);
         println!("{}", display::format_summary("Summary", &summary));
-        display::print_table(&repo.worktrees);
+        display::print_table(&repo.worktrees, true);
         println!();
     }
 

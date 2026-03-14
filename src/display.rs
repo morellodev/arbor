@@ -21,6 +21,16 @@ pub fn print_cd_hint(path: &Path) {
     eprintln!("  {}", format!("cd {}", shorten_path(path)).dimmed());
 }
 
+pub fn print_path_hint(path: &Path) {
+    use std::io::IsTerminal;
+    if std::io::stdout().is_terminal() {
+        eprintln!("To switch to it, run:");
+        print_cd_hint(path);
+    } else {
+        println!("{}", path.display());
+    }
+}
+
 pub fn shorten_path(path: &Path) -> String {
     if let Some(home) = dirs::home_dir()
         && let Ok(relative) = path.strip_prefix(&home)
@@ -140,36 +150,28 @@ fn new_table() -> Table {
     table
 }
 
-pub fn print_table(entries: &[WorktreeInfo]) {
+pub fn print_table(entries: &[WorktreeInfo], show_paths: bool) {
     let mut table = new_table();
-    table.set_header(vec![
-        "Branch".dimmed().to_string(),
-        "State".dimmed().to_string(),
-        "Tracking".dimmed().to_string(),
-        "Path".dimmed().to_string(),
-    ]);
 
-    for entry in entries {
-        table.add_row(vec![
-            colored_branch(entry),
-            colored_state(entry),
-            colored_tracking(entry),
-            shorten_path(&entry.path).dimmed().to_string(),
+    if show_paths {
+        table.set_header(vec![
+            "Branch".dimmed().to_string(),
+            "State".dimmed().to_string(),
+            "Tracking".dimmed().to_string(),
+            "Path".dimmed().to_string(),
         ]);
     }
 
-    println!("{table}");
-}
-
-pub fn print_short_table(entries: &[WorktreeInfo]) {
-    let mut table = new_table();
-
     for entry in entries {
-        table.add_row(vec![
+        let mut row = vec![
             colored_branch(entry),
             colored_state(entry),
             colored_tracking(entry),
-        ]);
+        ];
+        if show_paths {
+            row.push(shorten_path(&entry.path).dimmed().to_string());
+        }
+        table.add_row(row);
     }
 
     println!("{table}");

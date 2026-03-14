@@ -25,6 +25,8 @@ jobs:
             os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -41,11 +43,17 @@ jobs:
         shell: bash
         run: |
           cd target/${{ matrix.target }}/release
-          tar czf ../../../arbor-${{ matrix.target }}.tar.gz arbor
+          if [[ "${{ matrix.target }}" == *windows* ]]; then
+            7z a ../../../arbor-${{ matrix.target }}.zip arbor.exe
+          else
+            tar czf ../../../arbor-${{ matrix.target }}.tar.gz arbor
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: arbor-${{ matrix.target }}
-          path: arbor-${{ matrix.target }}.tar.gz
+          path: |
+            arbor-${{ matrix.target }}.tar.gz
+            arbor-${{ matrix.target }}.zip
 
   release:
     name: GitHub Release
@@ -59,7 +67,7 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create ${{ github.ref_name }} arbor-*.tar.gz --generate-notes
+        run: gh release create ${{ github.ref_name }} arbor-*.tar.gz arbor-*.zip --generate-notes
 
   homebrew:
     name: Update Homebrew tap

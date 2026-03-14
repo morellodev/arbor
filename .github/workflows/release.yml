@@ -48,7 +48,7 @@ jobs:
           else
             tar czf ../../../arbor-${{ matrix.target }}.tar.gz arbor
           fi
-      - uses: actions/upload-artifact@v4.6
+      - uses: actions/upload-artifact@v4
         with:
           name: arbor-${{ matrix.target }}
           path: |
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4.3
+      - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
       - name: Create release

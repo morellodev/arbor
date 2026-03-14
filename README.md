@@ -14,6 +14,10 @@ Git worktrees are great: multiple branches checked out at once, no stashing, no 
 
 Arbor puts them all in one place. `arbor add feat/login` creates the worktree, and with shell integration it `cd`s you into it too. `arbor rm feat/login` cleans it up.
 
+## Who is this for?
+
+If you review PRs while working on your own feature, juggle hotfixes alongside long-running branches, or run tests in one worktree while coding in another — arbor keeps everything organized.
+
 ## Install
 
 ### Homebrew (macOS and Linux)
@@ -43,6 +47,9 @@ arbor clone user/my-app
 # Create a worktree for a branch
 arbor add feat/login
 
+# Switch to an existing worktree
+arbor switch main
+
 # See all worktrees
 arbor ls
 
@@ -55,7 +62,7 @@ arbor rm -d feat/login
 
 ## Shell integration
 
-Add this so `arbor add` automatically `cd`s into the new worktree:
+Add this so `arbor add`, `arbor switch`, and `arbor clone` automatically `cd` into the worktree:
 
 ```sh
 # ~/.zshrc or ~/.bashrc
@@ -65,19 +72,20 @@ eval "$(arbor init zsh)"    # or bash
 arbor init fish | source
 ```
 
-Without this, arbor prints the worktree path but won't change your directory.
+Without this, arbor prints the worktree path but won't change your directory. The shell integration also provides dynamic tab completions for branch names.
 
 ## Commands
 
 | Command | Alias | Description |
 | --- | --- | --- |
 | `arbor add <branch> [--repo <name>]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. `--repo` lets you add from any directory. |
+| `arbor switch <branch>` | | Switch to an existing worktree. Errors if the worktree doesn't exist. |
 | `arbor list [--all] [--json]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. |
 | `arbor remove <branch> [-f] [-d]` | `rm` | Remove a worktree. `-f` forces removal of dirty worktrees. `-d` also deletes the local branch. |
 | `arbor dir <branch>` | | Print the worktree path for a branch. Accepts both `feature/auth` and `feature-auth`. |
 | `arbor clone <url> [--no-worktree]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. |
-| `arbor status [--short]` | | Show dirty/clean state and ahead/behind counts for all worktrees. |
-| `arbor fetch` | | Fetch from origin in the current bare repo. |
+| `arbor status [--short] [--all]` | | Show dirty/clean state and ahead/behind counts for all worktrees. `--all` shows across all repos. |
+| `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
 | `arbor prune` | | Remove stale worktree references. |
 | `arbor init <shell>` | | Print shell integration snippet (bash, zsh, fish). |
 | `arbor completions <shell>` | | Generate shell completions (bash, zsh, fish, elvish, powershell). |

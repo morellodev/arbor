@@ -21,11 +21,15 @@ cargo test <test_name>         # Run a single test by name
 ## Architecture
 
 - **`src/main.rs`** — Entry point. `main()` calls `run()` and formats errors with `display::print_error`. `run()` parses CLI args (clap) and dispatches to command handlers.
-- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, List, Remove, Dir, Clone, Prune, Status, Fetch, Init, Completions).
+- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, Switch, List, Remove, Dir, Clone, Prune, Status, Fetch, Init, Completions).
 - **`src/config.rs`** — Loads/creates `~/.arbor/config.toml` with tilde expansion. Uses serde + toml.
-- **`src/git.rs`** — All git operations via `std::process::Command`. Two runners: `run_git` (captures output) and `run_git_inherited` (inherits stdio). Also contains `WorktreeInfo` struct and porcelain output parsing.
-- **`src/display.rs`** — Colored terminal output (using `colored` crate). Table formatting for worktree listings, summary stats, path shortening (`shorten_path`), and user-facing messages (`print_ok` ✓, `print_error` ✗, `print_note` ▸, `print_cd_hint`).
-- **`src/commands/`** — One file per subcommand (add, clone, dir, fetch, init, list, prune, remove, status). Each exports a `run` function re-exported from `commands/mod.rs`.
+- **`src/git/`** — All git operations via `std::process::Command`, split into submodules:
+  - `runner.rs` — `run_git`, `run_git_output`, `run_git_inherited` (`pub(super)`)
+  - `types.rs` — `ParsedWorktree`, `WorktreeInfo`, `parse_worktree_list`, `sanitize_branch`, `strip_git_suffix` + unit tests
+  - `commands.rs` — All pub fn git wrappers (`repo_toplevel`, `worktree_infos`, `resolve_worktree_branch`, `delete_branch`, etc.)
+  - `mod.rs` — Re-exports all pub items (callers use `crate::git::*` unchanged)
+- **`src/display.rs`** — Colored terminal output (using `colored` crate). Table formatting for worktree listings, summary stats, path shortening (`shorten_path`), terminal-aware path output (`print_path_hint`), and user-facing messages (`print_ok` ✓, `print_error` ✗, `print_note` ▸, `print_cd_hint`).
+- **`src/commands/`** — One file per subcommand (add, clone, dir, fetch, init, list, prune, remove, status, switch). Each exports a `run` function re-exported from `commands/mod.rs`.
 
 ## Key conventions
 

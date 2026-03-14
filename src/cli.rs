@@ -10,6 +10,10 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
     /// Create a worktree for a branch (or switch to it if it already exists)
+    #[command(after_help = "\
+Examples:
+  arbor add feature/auth
+  arbor add main --repo myapp")]
     Add {
         /// Branch name to create a worktree for
         branch: String,
@@ -19,13 +23,23 @@ pub enum Command {
     },
 
     /// Switch to an existing worktree
+    #[command(after_help = "\
+Examples:
+  arbor switch feature/auth
+  arbor switch feature-auth")]
     Switch {
         /// Branch name to switch to
         branch: String,
     },
 
     /// List worktrees for the current repository
-    #[command(visible_alias = "ls")]
+    #[command(
+        visible_alias = "ls",
+        after_help = "\
+Examples:
+  arbor ls
+  arbor ls --all --json"
+    )]
     List {
         /// Show worktrees for all repositories
         #[arg(long)]
@@ -36,7 +50,14 @@ pub enum Command {
     },
 
     /// Remove the worktree for a branch
-    #[command(visible_alias = "rm")]
+    #[command(
+        visible_alias = "rm",
+        after_help = "\
+Examples:
+  arbor rm feature/auth
+  arbor rm -d feature/auth
+  arbor rm -f -d stale-branch"
+    )]
     Remove {
         /// Branch name whose worktree to remove
         branch: String,
@@ -55,6 +76,10 @@ pub enum Command {
     },
 
     /// Clone a repository as a bare repo for worktree-based workflows
+    #[command(after_help = "\
+Examples:
+  arbor clone user/repo
+  arbor clone git@github.com:user/repo.git")]
     Clone {
         /// Repository URL or "user/repo" shorthand (defaults to GitHub)
         url: String,

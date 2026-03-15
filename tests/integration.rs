@@ -26,13 +26,13 @@ impl TestEnv {
         )
         .unwrap();
 
-        git(&repo, &["init"], home.path());
-        git(
-            &repo,
-            &["config", "user.email", "test@test.com"],
-            home.path(),
-        );
-        git(&repo, &["config", "user.name", "Test"], home.path());
+        fs::write(
+            home.path().join(".gitconfig"),
+            "[init]\n\tdefaultBranch = main\n[user]\n\temail = test@test.com\n\tname = Test\n",
+        )
+        .unwrap();
+
+        git(&repo, &["init", "--initial-branch=main"], home.path());
         git(
             &repo,
             &["commit", "--allow-empty", "-m", "init"],
@@ -50,6 +50,8 @@ impl TestEnv {
         let mut cmd = assert_cmd::Command::cargo_bin("arbor").unwrap();
         cmd.current_dir(dir);
         cmd.env("HOME", self.home.path());
+        cmd.env("GIT_CONFIG_NOSYSTEM", "1");
+        cmd.env("GIT_CONFIG_GLOBAL", self.home.path().join(".gitconfig"));
         #[cfg(windows)]
         cmd.env("USERPROFILE", self.home.path());
         cmd.args(args);
@@ -62,7 +64,9 @@ fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {
     cmd.args(args)
         .current_dir(dir.path())
         .env("HOME", home)
-        .env("GIT_TERMINAL_PROMPT", "0");
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", home.join(".gitconfig"));
     #[cfg(windows)]
     cmd.env("USERPROFILE", home);
     let output = cmd.output().unwrap();
@@ -96,10 +100,18 @@ fn add_existing_worktree_is_idempotent() {
     let env = TestEnv::new();
 
     let first = env.arbor(&["add", "feat"]).output().unwrap();
-    assert!(first.status.success());
+    assert!(
+        first.status.success(),
+        "first add should succeed, stderr: {}",
+        String::from_utf8_lossy(&first.stderr)
+    );
 
     let second = env.arbor(&["add", "feat"]).output().unwrap();
-    assert!(second.status.success());
+    assert!(
+        second.status.success(),
+        "second add should succeed, stderr: {}",
+        String::from_utf8_lossy(&second.stderr)
+    );
 
     let path_1 = String::from_utf8_lossy(&first.stdout).trim().to_string();
     let path_2 = String::from_utf8_lossy(&second.stdout).trim().to_string();
@@ -261,6 +273,8 @@ fn remove_force_delete_unmerged_branch() {
         .current_dir(&wt_path)
         .env("HOME", env.home.path())
         .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", env.home.path().join(".gitconfig"))
         .output()
         .unwrap();
     assert!(output.status.success());

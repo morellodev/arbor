@@ -95,8 +95,8 @@ mod tests {
     #[test]
     fn default_config_parses() {
         let config: Config = toml::from_str(DEFAULT_CONFIG).unwrap();
-        assert_eq!(config.worktree_dir, PathBuf::from("~/.arbor/worktrees"));
         assert_eq!(config.repos_dir, PathBuf::from("~/.arbor/repos"));
+        assert_eq!(config.worktree_dir, PathBuf::from("~/.arbor/worktrees"));
     }
 
     #[test]
@@ -120,12 +120,12 @@ mod tests {
     #[test]
     fn extra_fields_tolerated() {
         let input = r#"
-worktree_dir = "/tmp/worktrees"
 repos_dir = "/tmp/repos"
+worktree_dir = "/tmp/worktrees"
 some_future_key = true
 "#;
         let config: Config = toml::from_str(input).unwrap();
-        assert_eq!(config.worktree_dir, PathBuf::from("/tmp/worktrees"));
         assert_eq!(config.repos_dir, PathBuf::from("/tmp/repos"));
+        assert_eq!(config.worktree_dir, PathBuf::from("/tmp/worktrees"));
     }
 }

@@ -1,8 +1,19 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum ColorMode {
+    Auto,
+    Always,
+    Never,
+}
 
 #[derive(Parser)]
 #[command(name = "arbor", version, about = "A friendly git worktree manager")]
 pub struct Cli {
+    /// When to use colors: auto, always, or never
+    #[arg(long, global = true, default_value = "auto")]
+    pub color: ColorMode,
+
     #[command(subcommand)]
     pub command: Command,
 }

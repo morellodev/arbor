@@ -73,17 +73,17 @@ fn generate_completions(shell: clap_complete::Shell) -> String {
 fn print_script(shell: &Shell) -> Result<()> {
     match shell {
         Shell::Bash => {
-            print!("{SHELL_WRAPPER}\n");
+            println!("{SHELL_WRAPPER}");
             print!("{}", generate_completions(clap_complete::Shell::Bash));
             print!("{BASH_BRANCH_COMPLETIONS}");
         }
         Shell::Zsh => {
-            print!("{SHELL_WRAPPER}\n");
+            println!("{SHELL_WRAPPER}");
             print!("{}", generate_completions(clap_complete::Shell::Zsh));
             print!("{ZSH_BRANCH_COMPLETIONS}");
         }
         Shell::Fish => {
-            print!("{FISH_WRAPPER}\n");
+            println!("{FISH_WRAPPER}");
             print!("{}", generate_completions(clap_complete::Shell::Fish));
             print!("{FISH_BRANCH_COMPLETIONS}");
         }

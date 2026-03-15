@@ -24,6 +24,13 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
         bail!("Worktree has uncommitted changes. Use --force to remove anyway.");
     }
 
+    let canonical_wt = wt_path.canonicalize().unwrap_or_else(|_| wt_path.clone());
+    let toplevel = std::env::current_dir()
+        .ok()
+        .filter(|cwd| cwd.starts_with(&canonical_wt))
+        .map(|_| git::repo_toplevel())
+        .transpose()?;
+
     git::worktree_remove(&wt_path, force)?;
     display::print_ok(&format!("Removed {}", display::shorten_path(&wt_path)));
 
@@ -34,6 +41,10 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
                 display::print_error(&format!("Could not delete branch '{actual_branch}': {e}"))
             }
         }
+    }
+
+    if let Some(toplevel) = toplevel {
+        println!("{}", toplevel.display());
     }
 
     Ok(())

@@ -71,9 +71,10 @@ fn print_script(shell: &Shell) -> Result<()> {
 
 const SHELL_WRAPPER: &str = r#"arbor() {
   case "$1" in
-    add|switch|clone)
+    add|switch|clone|remove|rm|clean)
       local dir
-      dir=$(command arbor "$@") && cd "$dir"
+      dir=$(command arbor "$@") || return $?
+      if [ -n "$dir" ]; then cd "$dir"; fi
       ;;
     *)
       command arbor "$@"
@@ -87,7 +88,7 @@ _arbor() {
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
-  subcmds="add switch list ls remove rm dir clone prune status fetch init help"
+  subcmds="add switch list ls remove rm dir clone clean prune status fetch init help"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=($(compgen -W "$subcmds" -- "$cur"))
@@ -112,7 +113,7 @@ complete -F _arbor arbor
 
 const ZSH_COMPLETIONS: &str = r#"
 _arbor() {
-  local -a subcmds=(add switch list ls remove rm dir clone prune status fetch init help)
+  local -a subcmds=(add switch list ls remove rm dir clone clean prune status fetch init help)
   if (( CURRENT == 2 )); then
     _describe 'command' subcmds
     return
@@ -133,9 +134,12 @@ compdef _arbor arbor
 
 const FISH_SNIPPET: &str = r#"function arbor --wraps arbor
   switch $argv[1]
-    case add switch clone
+    case add switch clone remove rm clean
       set -l dir (command arbor $argv)
-      and cd $dir
+      or return $status
+      if test -n "$dir"
+        cd $dir
+      end
     case '*'
       command arbor $argv
   end
@@ -149,6 +153,7 @@ complete -c arbor -n '__fish_use_subcommand' -f -a 'remove' -d 'Remove a worktre
 complete -c arbor -n '__fish_use_subcommand' -f -a 'rm' -d 'Remove a worktree'
 complete -c arbor -n '__fish_use_subcommand' -f -a 'dir' -d 'Print worktree path'
 complete -c arbor -n '__fish_use_subcommand' -f -a 'clone' -d 'Clone a repository'
+complete -c arbor -n '__fish_use_subcommand' -f -a 'clean' -d 'Interactively remove unused worktrees'
 complete -c arbor -n '__fish_use_subcommand' -f -a 'prune' -d 'Remove stale worktree references'
 complete -c arbor -n '__fish_use_subcommand' -f -a 'status' -d 'Show worktree status'
 complete -c arbor -n '__fish_use_subcommand' -f -a 'fetch' -d 'Fetch from origin'

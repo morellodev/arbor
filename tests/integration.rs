@@ -308,6 +308,90 @@ fn remove_alias_rm_works() {
     assert!(output.status.success());
 }
 
+#[test]
+fn remove_from_inside_worktree_prints_toplevel() {
+    let env = TestEnv::new();
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    let rm_out = env
+        .arbor_in(Path::new(&wt_path), &["rm", "feat"])
+        .output()
+        .unwrap();
+    assert!(
+        rm_out.status.success(),
+        "rm should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+
+    let printed = fs::canonicalize(String::from_utf8_lossy(&rm_out.stdout).trim()).unwrap();
+    let expected = fs::canonicalize(env.repo.path()).unwrap();
+    assert_eq!(printed, expected, "should print the repo toplevel path");
+}
+
+#[test]
+fn remove_from_worktree_subdirectory_prints_toplevel() {
+    let env = TestEnv::new();
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    let subdir = Path::new(&wt_path).join("deep/nested");
+    fs::create_dir_all(&subdir).unwrap();
+
+    let rm_out = env
+        .arbor_in(&subdir, &["rm", "feat", "-f"])
+        .output()
+        .unwrap();
+    assert!(
+        rm_out.status.success(),
+        "rm should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+
+    let printed = fs::canonicalize(String::from_utf8_lossy(&rm_out.stdout).trim()).unwrap();
+    let expected = fs::canonicalize(env.repo.path()).unwrap();
+    assert_eq!(printed, expected, "should print the repo toplevel path");
+}
+
+#[test]
+fn remove_from_outside_worktree_prints_nothing_to_stdout() {
+    let env = TestEnv::new();
+
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let rm_out = env.arbor(&["rm", "feat"]).output().unwrap();
+    assert!(rm_out.status.success());
+
+    let stdout = String::from_utf8_lossy(&rm_out.stdout);
+    assert!(
+        stdout.trim().is_empty(),
+        "should print nothing to stdout, got: {stdout}"
+    );
+}
+
+#[test]
+fn remove_from_different_worktree_prints_nothing_to_stdout() {
+    let env = TestEnv::new();
+
+    let add_a = env.arbor(&["add", "feat-a"]).output().unwrap();
+    let wt_a = String::from_utf8_lossy(&add_a.stdout).trim().to_string();
+    env.arbor(&["add", "feat-b"]).output().unwrap();
+
+    let rm_out = env
+        .arbor_in(Path::new(&wt_a), &["rm", "feat-b"])
+        .output()
+        .unwrap();
+    assert!(rm_out.status.success());
+
+    let stdout = String::from_utf8_lossy(&rm_out.stdout);
+    assert!(
+        stdout.trim().is_empty(),
+        "should print nothing to stdout when removing a different worktree, got: {stdout}"
+    );
+}
+
 // ── switch ───────────────────────────────────────────────────────────
 
 #[test]
@@ -538,6 +622,27 @@ fn init_unsupported_shell_fails() {
     assert!(
         stderr.contains("Unsupported shell"),
         "should reject unsupported shell, got: {stderr}"
+    );
+}
+
+// ── clean ────────────────────────────────────────────────────────────
+
+#[test]
+fn clean_non_tty_fails_with_hint() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["clean"]).write_stdin("").output().unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Interactive terminal required"),
+        "should require TTY, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("arbor rm"),
+        "should suggest arbor rm, got: {stderr}"
     );
 }
 

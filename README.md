@@ -97,6 +97,7 @@ arbor init fish | source
 | `arbor clone <url> [--no-worktree]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. |
 | `arbor status [--short] [--all]` | | Show dirty/clean state and ahead/behind counts for all worktrees. `--all` shows across all repos. |
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
+| `arbor clean [-d]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. |
 | `arbor prune` | | Remove stale worktree references. |
 | `arbor init [shell]` | | Set up shell integration (cd wrapper + completions). Auto-detects shell from `$SHELL`. |
 

@@ -88,6 +88,13 @@ Examples:
         no_worktree: bool,
     },
 
+    /// Interactively remove unused worktrees
+    Clean {
+        /// Also delete local branches after removing worktrees
+        #[arg(long, short)]
+        delete_branch: bool,
+    },
+
     /// Remove references to stale worktrees
     Prune,
 

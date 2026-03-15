@@ -79,6 +79,20 @@ fn colored_tracking(entry: &WorktreeInfo) -> String {
     }
 }
 
+pub fn format_worktree_item(entry: &WorktreeInfo) -> String {
+    let branch = colored_branch(entry);
+    let state = colored_state(entry);
+    let tracking = colored_tracking(entry);
+    let path = shorten_path(&entry.path).dimmed().to_string();
+    let warning = if entry.dirty {
+        " ⚠".yellow().to_string()
+    } else {
+        String::new()
+    };
+
+    format!("{branch}  [{state}]  {tracking}  {path}{warning}")
+}
+
 pub struct WorktreeSummary {
     pub total: usize,
     pub dirty: usize,

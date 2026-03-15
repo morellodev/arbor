@@ -47,6 +47,7 @@ fn run() -> Result<()> {
             ref url,
             no_worktree,
         } => commands::clone(&config, url, no_worktree),
+        Command::Clean { delete_branch } => commands::clean(delete_branch),
         Command::Prune => commands::prune(),
         Command::Status { short, all } => commands::status(&config, short, all),
         Command::Fetch { all } => commands::fetch(&config, all),

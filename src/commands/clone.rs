@@ -3,9 +3,9 @@ use std::fs;
 use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
-use crate::{display, git};
+use crate::{display, git, hooks};
 
-pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
+pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Result<()> {
     let url = expand_shorthand(url);
     let name = repo_name_from_url(&url)?;
     let bare_name = format!("{name}.git");
@@ -43,6 +43,14 @@ pub fn run(config: &Config, url: &str, no_worktree: bool) -> Result<()> {
             default_branch,
             display::shorten_path(&wt_path)
         ));
+        if !no_hooks {
+            hooks::run_post_create(&hooks::HookContext {
+                worktree_path: wt_path.clone(),
+                branch: default_branch.clone(),
+                repo_name: name.clone(),
+                event: "post_create".to_string(),
+            });
+        }
         display::print_path_hint(&wt_path);
         return Ok(());
     }

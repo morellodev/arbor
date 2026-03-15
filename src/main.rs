@@ -3,6 +3,7 @@ mod commands;
 mod config;
 mod display;
 mod git;
+mod hooks;
 
 use std::io::IsTerminal;
 use std::process;
@@ -46,7 +47,8 @@ fn run(cli: Cli) -> Result<()> {
         Command::Add {
             ref branch,
             ref repo,
-        } => commands::add(&config, branch, repo.as_deref()),
+            no_hooks,
+        } => commands::add(&config, branch, repo.as_deref(), no_hooks),
         Command::Switch { ref branch } => commands::switch(branch),
         Command::List { all, json } => commands::list(&config, all, json),
         Command::Remove {
@@ -58,7 +60,8 @@ fn run(cli: Cli) -> Result<()> {
         Command::Clone {
             ref url,
             no_worktree,
-        } => commands::clone(&config, url, no_worktree),
+            no_hooks,
+        } => commands::clone(&config, url, no_worktree, no_hooks),
         Command::Clean { delete_branch } => commands::clean(delete_branch),
         Command::Prune => commands::prune(),
         Command::Status { short, all } => commands::status(&config, short, all),

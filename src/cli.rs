@@ -31,6 +31,9 @@ Examples:
         /// Repository name (resolve against ~/.arbor/repos/) to add from any directory
         #[arg(long)]
         repo: Option<String>,
+        /// Skip post-create hooks
+        #[arg(long)]
+        no_hooks: bool,
     },
 
     /// Switch to an existing worktree
@@ -97,6 +100,9 @@ Examples:
         /// Don't create a worktree for the default branch after cloning
         #[arg(long)]
         no_worktree: bool,
+        /// Skip post-create hooks
+        #[arg(long)]
+        no_hooks: bool,
     },
 
     /// Interactively remove unused worktrees

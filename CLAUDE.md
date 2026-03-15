@@ -34,6 +34,7 @@ cargo clippy -- -D warnings    # Lint (warnings treated as errors)
   - `types.rs` — `ParsedWorktree`, `WorktreeInfo`, `parse_worktree_list`, `sanitize_branch`, `strip_git_suffix` + unit tests
   - `commands.rs` — All pub fn git wrappers (`repo_toplevel`, `worktree_infos`, `resolve_worktree_branch`, `delete_branch`, etc.)
   - `mod.rs` — Re-exports all pub items (callers use `crate::git::*` unchanged)
+- **`src/hooks.rs`** — Post-create hook support. Reads `.arbor.toml` from worktree root, executes `post_create` commands via shell with stdout redirected to stderr.
 - **`src/display.rs`** — Colored terminal output (using `colored` crate — only file that imports it). Table formatting for worktree listings, summary stats, path shortening (`shorten_path`), terminal-aware path output (`print_path_hint`), and user-facing messages (`print_ok` ✓, `print_error` ✗, `print_note` ▸, `print_section`, `print_heading`, `print_hint`, `print_cd_hint`).
 - **`src/commands/`** — One file per subcommand (add, clean, clone, dir, fetch, init, list, prune, remove, status, switch). Each exports a `run` function re-exported from `commands/mod.rs`.
 

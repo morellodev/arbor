@@ -89,12 +89,12 @@ arbor init fish | source
 
 | Command | Alias | Description |
 | --- | --- | --- |
-| `arbor add <branch> [--repo <name>]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. `--repo` lets you add from any directory. |
+| `arbor add <branch> [--repo <name>] [--no-hooks]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. `--repo` lets you add from any directory. `--no-hooks` skips post-create hooks. |
 | `arbor switch <branch>` | | Switch to an existing worktree. Errors if the worktree doesn't exist. |
 | `arbor list [--all] [--json]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. |
 | `arbor remove <branch> [-f] [-d]` | `rm` | Remove a worktree. `-f` forces removal of dirty worktrees. `-d` also deletes the local branch. |
 | `arbor dir <branch>` | | Print the worktree path for a branch. Accepts both `feature/auth` and `feature-auth`. |
-| `arbor clone <url> [--no-worktree]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. |
+| `arbor clone <url> [--no-worktree] [--no-hooks]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. `--no-hooks` skips post-create hooks. |
 | `arbor status [--short] [--all]` | | Show dirty/clean state and ahead/behind counts for all worktrees. `--all` shows across all repos. |
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
 | `arbor clean [-d]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. |
@@ -128,6 +128,39 @@ worktree_dir = "~/.arbor/worktrees"
 ```
 
 Change these to store worktrees and bare repos somewhere else.
+
+## Hooks
+
+You can run commands automatically after a worktree is created by adding a `.arbor.toml` file to your repo root:
+
+```toml
+[hooks]
+post_create = "npm install"
+```
+
+Multiple commands are supported:
+
+```toml
+[hooks]
+post_create = ["npm install", "cp .env.example .env"]
+```
+
+Hooks run inside the new worktree directory with these environment variables available:
+
+| Variable | Description |
+| --- | --- |
+| `ARBOR_WORKTREE` | Absolute path to the new worktree |
+| `ARBOR_BRANCH` | Branch name |
+| `ARBOR_REPO` | Repository name |
+| `ARBOR_EVENT` | Hook event name (`post_create`) |
+
+Hook output streams to stderr so it doesn't interfere with `cd $(arbor add ...)` piping. If a hook fails, arbor prints a warning and continues — the worktree is still created.
+
+To skip hooks for a single invocation, pass `--no-hooks`:
+
+```sh
+arbor add feat/login --no-hooks
+```
 
 ## Alternatives
 

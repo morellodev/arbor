@@ -3,9 +3,9 @@ use std::fs;
 use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
-use crate::{display, git};
+use crate::{display, git, hooks};
 
-pub fn run(config: &Config, branch: &str, repo: Option<&str>) -> Result<()> {
+pub fn run(config: &Config, branch: &str, repo: Option<&str>, no_hooks: bool) -> Result<()> {
     let (repo_name, repo_cwd) = resolve_repo(config, repo)?;
     let wt_path = config.worktree_path(&repo_name, branch);
 
@@ -42,6 +42,15 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>) -> Result<()> {
             "Created '{branch}' at {}",
             display::shorten_path(&wt_path)
         ));
+    }
+
+    if !no_hooks {
+        hooks::run_post_create(&hooks::HookContext {
+            worktree_path: wt_path.clone(),
+            branch: branch.to_string(),
+            repo_name: repo_name.clone(),
+            event: "post_create".to_string(),
+        });
     }
 
     display::print_path_hint(&wt_path);

@@ -309,6 +309,7 @@ fn remove_alias_rm_works() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn remove_from_inside_worktree_prints_toplevel() {
     let env = TestEnv::new();
 
@@ -331,6 +332,7 @@ fn remove_from_inside_worktree_prints_toplevel() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn remove_from_worktree_subdirectory_prints_toplevel() {
     let env = TestEnv::new();
 

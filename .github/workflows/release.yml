@@ -7,8 +7,20 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    name: Validate ref
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check version tag
+        run: |
+          if [[ ! "${{ github.ref_name }}" =~ ^v[0-9] ]]; then
+            echo "::error::This workflow must be run on a version tag (e.g. v1.0.0), got '${{ github.ref_name }}'"
+            exit 1
+          fi
+
   build:
     name: Build (${{ matrix.target }})
+    needs: validate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -84,20 +96,25 @@ jobs:
         with:
           repository: morellodev/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
       - name: Update formula
         env:
           VERSION: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           VERSION="${VERSION#v}"
+
+          DARWIN_ARM64_SHA=$(sha256sum arbor-aarch64-apple-darwin.tar.gz | cut -d' ' -f1)
+          DARWIN_X86_SHA=$(sha256sum arbor-x86_64-apple-darwin.tar.gz | cut -d' ' -f1)
+          LINUX_X86_SHA=$(sha256sum arbor-x86_64-unknown-linux-gnu.tar.gz | cut -d' ' -f1)
+          LINUX_ARM64_SHA=$(sha256sum arbor-aarch64-unknown-linux-gnu.tar.gz | cut -d' ' -f1)
+
           DARWIN_ARM64_URL="https://github.com/morellodev/arbor/releases/download/v${VERSION}/arbor-aarch64-apple-darwin.tar.gz"
           DARWIN_X86_URL="https://github.com/morellodev/arbor/releases/download/v${VERSION}/arbor-x86_64-apple-darwin.tar.gz"
           LINUX_X86_URL="https://github.com/morellodev/arbor/releases/download/v${VERSION}/arbor-x86_64-unknown-linux-gnu.tar.gz"
           LINUX_ARM64_URL="https://github.com/morellodev/arbor/releases/download/v${VERSION}/arbor-aarch64-unknown-linux-gnu.tar.gz"
-
-          DARWIN_ARM64_SHA=$(curl -sfL "$DARWIN_ARM64_URL" | sha256sum | cut -d' ' -f1)
-          DARWIN_X86_SHA=$(curl -sfL "$DARWIN_X86_URL" | sha256sum | cut -d' ' -f1)
-          LINUX_X86_SHA=$(curl -sfL "$LINUX_X86_URL" | sha256sum | cut -d' ' -f1)
-          LINUX_ARM64_SHA=$(curl -sfL "$LINUX_ARM64_URL" | sha256sum | cut -d' ' -f1)
 
           mkdir -p Formula
           cat > Formula/arbor.rb << FORMULA

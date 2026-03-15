@@ -6,16 +6,27 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: Test (${{ matrix.os }})
+  guard:
+    name: Should run
+    runs-on: ubuntu-latest
     if: >-
       !startsWith(github.head_ref || '', 'release-plz-')
       && !startsWith(github.event.head_commit.message || '', 'chore: release')
       && !contains(github.event.head_commit.message || '', 'release-plz-')
+    steps:
+      - run: echo "CI should run"
+
+  test:
+    name: Test (${{ matrix.os }})
+    needs: guard
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -28,10 +39,7 @@ jobs:
 
   lint:
     name: Lint
-    if: >-
-      !startsWith(github.head_ref || '', 'release-plz-')
-      && !startsWith(github.event.head_commit.message || '', 'chore: release')
-      && !contains(github.event.head_commit.message || '', 'release-plz-')
+    needs: guard
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

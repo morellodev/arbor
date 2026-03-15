@@ -7,7 +7,7 @@ pub fn run(config: &Config, branch: &str, force: bool, delete_branch: bool) -> R
     let wt_path = config.worktree_path(&repo_name, branch);
 
     if !wt_path.exists() {
-        bail!("No worktree found at {}", wt_path.display());
+        bail!("No worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?");
     }
 
     let actual_branch = if delete_branch {

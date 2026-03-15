@@ -84,10 +84,7 @@ pub fn run(delete_branch: bool) -> Result<()> {
         return Ok(());
     }
 
-    let items: Vec<String> = worktrees
-        .iter()
-        .map(display::format_worktree_item)
-        .collect();
+    let items = display::format_worktree_items(&worktrees);
     let defaults: Vec<bool> = worktrees.iter().map(is_abandoned).collect();
 
     let selections = MultiSelect::new()

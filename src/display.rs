@@ -79,13 +79,28 @@ fn colored_tracking(entry: &WorktreeInfo) -> String {
     }
 }
 
-pub fn format_worktree_item(entry: &WorktreeInfo) -> String {
-    let branch = colored_branch(entry);
-    let state = colored_state(entry);
-    let tracking = colored_tracking(entry);
-    let path = shorten_path(&entry.path).dimmed().to_string();
+fn branch_visible_len(entry: &WorktreeInfo) -> usize {
+    match &entry.branch {
+        Some(name) => name.len(),
+        None => "(detached)".len(),
+    }
+}
 
-    format!("{branch}  {state}  {tracking}  {path}")
+pub fn format_worktree_items(entries: &[WorktreeInfo]) -> Vec<String> {
+    let max_branch = entries.iter().map(branch_visible_len).max().unwrap_or(0);
+
+    entries
+        .iter()
+        .map(|entry| {
+            let branch = colored_branch(entry);
+            let pad = max_branch - branch_visible_len(entry);
+            let state = colored_state(entry);
+            let tracking = colored_tracking(entry);
+            let path = shorten_path(&entry.path).dimmed().to_string();
+
+            format!("{branch}{}  {state}  {tracking}  {path}", " ".repeat(pad))
+        })
+        .collect()
 }
 
 pub struct WorktreeSummary {

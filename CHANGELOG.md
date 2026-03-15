@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1](https://github.com/morellodev/arbor/compare/v0.2.0...v0.2.1) - 2026-03-15
+
+### Added
+
+- auto-generate shell completions with clap_complete
+- add aggregate summaries for --all batch operations
+- use icons and compact notation in worktree tables
+- add helpful suggestions to dir and remove error messages
+- respect NO_COLOR env var and add --color global flag
+- add `arbor clean` command and auto-cd out of removed worktrees
+
+### Fixed
+
+- skip remove-from-inside-worktree tests on Windows
+- align columns in arbor clean worktree list
+- enable ANSI-aware column alignment in tables
+
+### Other
+
+- reuse print_note in fetch summary and single-pass batch aggregation
+- require fmt and clippy checks before every commit
+- fix clippy print_with_newline warnings
+- update CLAUDE.md for auto-generated completions
+- update transitive dependencies
+- reorder config fields to match struct declaration
+- prevent duplicate release PR on release merge
+
 ## [0.2.0](https://github.com/morellodev/arbor/compare/v0.1.2...v0.2.0) - 2026-03-14
 
 ### Added

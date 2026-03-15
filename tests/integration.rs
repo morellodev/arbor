@@ -758,9 +758,11 @@ fn add_hook_failure_does_not_fail_command() {
 fn add_no_arbor_toml_succeeds_silently() {
     let env = TestEnv::new();
     let output = env.arbor(&["add", "feat"]).output().unwrap();
-    assert!(output.status.success());
-
     let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "add should succeed without .arbor.toml, stderr: {stderr}"
+    );
     assert!(
         !stderr.contains("hook") && !stderr.contains("Hook"),
         "should not mention hooks when no .arbor.toml, got: {stderr}"

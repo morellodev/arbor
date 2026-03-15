@@ -31,7 +31,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-13
           - target: aarch64-apple-darwin
             os: macos-latest
           - target: x86_64-pc-windows-msvc
@@ -50,6 +50,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+      - name: Ensure target is installed
+        run: rustup target add ${{ matrix.target }}
       - run: cargo build --release --target ${{ matrix.target }}
       - name: Package
         shell: bash

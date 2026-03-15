@@ -12,7 +12,7 @@ permissions:
 jobs:
   release-plz:
     name: Release PR
-    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release') }}"
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release') && !contains(github.event.head_commit.message, 'release-plz-') }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -27,7 +27,7 @@ jobs:
 
   tag:
     name: Tag release
-    if: "${{ startsWith(github.event.head_commit.message, 'chore: release') }}"
+    if: "${{ startsWith(github.event.head_commit.message, 'chore: release') || contains(github.event.head_commit.message, 'release-plz-') }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

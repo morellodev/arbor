@@ -65,10 +65,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-      - name: Create release
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create ${{ github.ref_name }} arbor-*.tar.gz arbor-*.zip --generate-notes
+        run: |
+          TAG="${{ github.ref_name }}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" arbor-*.tar.gz arbor-*.zip --clobber
+          else
+            gh release create "$TAG" arbor-*.tar.gz arbor-*.zip --generate-notes
+          fi
 
   homebrew:
     name: Update Homebrew tap

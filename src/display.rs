@@ -165,36 +165,39 @@ pub fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
 
 pub fn print_fetch_summary(success: usize, failed: usize) {
     let total = success + failed;
-    if failed > 0 {
-        eprintln!(
-            "{} Fetched {}/{} repositories ({} failed)",
-            "\u{25b8}".dimmed(),
-            success,
-            total,
-            failed.to_string().red()
-        );
+    let noun = if total == 1 {
+        "repository"
     } else {
-        eprintln!(
-            "{} Fetched {} {}",
-            "\u{25b8}".dimmed(),
-            total,
-            if total == 1 {
-                "repository"
-            } else {
-                "repositories"
-            }
-        );
+        "repositories"
+    };
+    if failed > 0 {
+        print_note(&format!(
+            "Fetched {success}/{total} {noun} ({} failed)",
+            failed.to_string().red()
+        ));
+    } else {
+        print_note(&format!("Fetched {total} {noun}"));
     }
 }
 
 pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
-    let aggregate = WorktreeSummary {
-        total: summaries.iter().map(|s| s.total).sum(),
-        dirty: summaries.iter().map(|s| s.dirty).sum(),
-        ahead: summaries.iter().map(|s| s.ahead).sum(),
-        behind: summaries.iter().map(|s| s.behind).sum(),
-        detached: summaries.iter().map(|s| s.detached).sum(),
-    };
+    let aggregate = summaries.iter().fold(
+        WorktreeSummary {
+            total: 0,
+            dirty: 0,
+            ahead: 0,
+            behind: 0,
+            detached: 0,
+        },
+        |mut acc, s| {
+            acc.total += s.total;
+            acc.dirty += s.dirty;
+            acc.ahead += s.ahead;
+            acc.behind += s.behind;
+            acc.detached += s.detached;
+            acc
+        },
+    );
     let repos = summaries.len();
     let label = format!(
         "Total ({} {})",

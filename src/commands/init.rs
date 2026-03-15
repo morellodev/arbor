@@ -1,7 +1,10 @@
 use std::io::IsTerminal;
 
 use anyhow::{Result, bail};
+use clap::CommandFactory;
+use clap_complete::generate;
 
+use crate::cli::Cli;
 use crate::display;
 
 enum Shell {
@@ -60,11 +63,30 @@ fn print_setup_instructions(shell: &Shell) -> Result<()> {
     Ok(())
 }
 
+fn generate_completions(shell: clap_complete::Shell) -> String {
+    let mut cmd = Cli::command();
+    let mut buf = Vec::new();
+    generate(shell, &mut cmd, "arbor", &mut buf);
+    String::from_utf8(buf).expect("clap_complete should produce valid UTF-8")
+}
+
 fn print_script(shell: &Shell) -> Result<()> {
     match shell {
-        Shell::Bash => print!("{SHELL_WRAPPER}\n{BASH_COMPLETIONS}"),
-        Shell::Zsh => print!("{SHELL_WRAPPER}\n{ZSH_COMPLETIONS}"),
-        Shell::Fish => print!("{FISH_SNIPPET}"),
+        Shell::Bash => {
+            print!("{SHELL_WRAPPER}\n");
+            print!("{}", generate_completions(clap_complete::Shell::Bash));
+            print!("{BASH_BRANCH_COMPLETIONS}");
+        }
+        Shell::Zsh => {
+            print!("{SHELL_WRAPPER}\n");
+            print!("{}", generate_completions(clap_complete::Shell::Zsh));
+            print!("{ZSH_BRANCH_COMPLETIONS}");
+        }
+        Shell::Fish => {
+            print!("{FISH_WRAPPER}\n");
+            print!("{}", generate_completions(clap_complete::Shell::Fish));
+            print!("{FISH_BRANCH_COMPLETIONS}");
+        }
     }
     Ok(())
 }
@@ -82,42 +104,41 @@ const SHELL_WRAPPER: &str = r#"arbor() {
   esac
 }"#;
 
-const BASH_COMPLETIONS: &str = r#"
-_arbor() {
-  local cur prev subcmds
-  COMPREPLY=()
-  cur="${COMP_WORDS[COMP_CWORD]}"
-  prev="${COMP_WORDS[COMP_CWORD-1]}"
-  subcmds="add switch list ls remove rm dir clone clean prune status fetch init help"
+const FISH_WRAPPER: &str = r#"function arbor --wraps arbor
+  switch $argv[1]
+    case add switch clone remove rm clean
+      set -l dir (command arbor $argv)
+      or return $status
+      if test -n "$dir"
+        cd $dir
+      end
+    case '*'
+      command arbor $argv
+  end
+end"#;
 
-  if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=($(compgen -W "$subcmds" -- "$cur"))
-    return
-  fi
-
+const BASH_BRANCH_COMPLETIONS: &str = r#"
+_arbor_branches() {
+  _arbor
   case "${COMP_WORDS[1]}" in
     add)
       local branches
       branches=$(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u)
-      COMPREPLY=($(compgen -W "$branches" -- "$cur"))
+      COMPREPLY=($(compgen -W "$branches" -- "${COMP_WORDS[COMP_CWORD]}"))
       ;;
     switch|rm|remove|dir)
       local branches
       branches=$(git worktree list --porcelain 2>/dev/null | grep '^branch ' | sed 's|^branch refs/heads/||')
-      COMPREPLY=($(compgen -W "$branches" -- "$cur"))
+      COMPREPLY=($(compgen -W "$branches" -- "${COMP_WORDS[COMP_CWORD]}"))
       ;;
   esac
 }
-complete -F _arbor arbor
+complete -F _arbor_branches arbor
 "#;
 
-const ZSH_COMPLETIONS: &str = r#"
-_arbor() {
-  local -a subcmds=(add switch list ls remove rm dir clone clean prune status fetch init help)
-  if (( CURRENT == 2 )); then
-    _describe 'command' subcmds
-    return
-  fi
+const ZSH_BRANCH_COMPLETIONS: &str = r#"
+_arbor_branches() {
+  _arbor "$@"
   case "${words[2]}" in
     add)
       local -a branches=($(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u))
@@ -129,37 +150,10 @@ _arbor() {
       ;;
   esac
 }
-compdef _arbor arbor
+compdef _arbor_branches arbor
 "#;
 
-const FISH_SNIPPET: &str = r#"function arbor --wraps arbor
-  switch $argv[1]
-    case add switch clone remove rm clean
-      set -l dir (command arbor $argv)
-      or return $status
-      if test -n "$dir"
-        cd $dir
-      end
-    case '*'
-      command arbor $argv
-  end
-end
-
-complete -c arbor -n '__fish_use_subcommand' -f -a 'add' -d 'Create a worktree for a branch'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'switch' -d 'Switch to an existing worktree'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'list' -d 'List worktrees'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'ls' -d 'List worktrees'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'remove' -d 'Remove a worktree'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'rm' -d 'Remove a worktree'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'dir' -d 'Print worktree path'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'clone' -d 'Clone a repository'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'clean' -d 'Interactively remove unused worktrees'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'prune' -d 'Remove stale worktree references'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'status' -d 'Show worktree status'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'fetch' -d 'Fetch from origin'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'init' -d 'Set up shell integration'
-complete -c arbor -n '__fish_use_subcommand' -f -a 'help' -d 'Print help'
-
+const FISH_BRANCH_COMPLETIONS: &str = r#"
 complete -c arbor -n '__fish_seen_subcommand_from add' -f -a '(git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/ 2>/dev/null | string replace -r "^origin/" "" | sort -u)'
 
 complete -c arbor -n '__fish_seen_subcommand_from switch rm remove dir' -f -a '(git worktree list --porcelain 2>/dev/null | string match -r "^branch refs/heads/(.*)" | string replace -r "^branch refs/heads/" "")'

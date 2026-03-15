@@ -1,7 +1,10 @@
 [workspace]
-# Let release.yml handle builds, GitHub Release, and Homebrew tap update
+# Don't publish to crates.io — release.yml handles GitHub Release and Homebrew tap
 publish = false
+# Don't create GitHub Releases — release.yml handles that after tagging
 git_release_enable = false
+# Use git tags for version detection (not published to crates.io)
+git_only = true
 # Tag format
 git_tag_name = "v{{ version }}"
 # Use conventional commits to determine version bumps and generate changelog

@@ -87,13 +87,18 @@ fn list_all_repos(config: &Config) -> Result<()> {
         return Ok(());
     }
 
+    let mut summaries = Vec::new();
+
     for repo in &repos {
         display::print_section(&repo.display_name);
         let summary = display::summarize(&repo.worktrees);
         println!("{}", display::format_summary("Summary", &summary));
         display::print_table(&repo.worktrees, true);
         println!();
+        summaries.push(summary);
     }
+
+    display::print_batch_summary(&summaries);
 
     Ok(())
 }

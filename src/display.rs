@@ -163,6 +163,47 @@ pub fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     )
 }
 
+pub fn print_fetch_summary(success: usize, failed: usize) {
+    let total = success + failed;
+    if failed > 0 {
+        eprintln!(
+            "{} Fetched {}/{} repositories ({} failed)",
+            "\u{25b8}".dimmed(),
+            success,
+            total,
+            failed.to_string().red()
+        );
+    } else {
+        eprintln!(
+            "{} Fetched {} {}",
+            "\u{25b8}".dimmed(),
+            total,
+            if total == 1 {
+                "repository"
+            } else {
+                "repositories"
+            }
+        );
+    }
+}
+
+pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
+    let aggregate = WorktreeSummary {
+        total: summaries.iter().map(|s| s.total).sum(),
+        dirty: summaries.iter().map(|s| s.dirty).sum(),
+        ahead: summaries.iter().map(|s| s.ahead).sum(),
+        behind: summaries.iter().map(|s| s.behind).sum(),
+        detached: summaries.iter().map(|s| s.detached).sum(),
+    };
+    let repos = summaries.len();
+    let label = format!(
+        "Total ({} {})",
+        repos,
+        if repos == 1 { "repo" } else { "repos" }
+    );
+    eprintln!("{}", format_summary(&label, &aggregate));
+}
+
 fn new_table() -> Table {
     let mut table = Table::new();
     table

@@ -28,15 +28,26 @@ fn run_all(config: &Config) -> Result<()> {
         return Ok(());
     }
 
+    let mut success = 0;
+    let mut failed = 0;
+
     for repo in &repos {
         display::print_section(&repo.display_name);
         display::print_note("Fetching from origin...");
         match git::fetch_origin(&repo.path) {
-            Ok(()) => display::print_ok("Fetch complete"),
-            Err(e) => display::print_error(&format!("Fetch failed: {e}")),
+            Ok(()) => {
+                display::print_ok("Fetch complete");
+                success += 1;
+            }
+            Err(e) => {
+                display::print_error(&format!("Fetch failed: {e}"));
+                failed += 1;
+            }
         }
-        println!();
+        eprintln!();
     }
+
+    display::print_fetch_summary(success, failed);
 
     Ok(())
 }

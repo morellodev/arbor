@@ -16,7 +16,13 @@ cargo test                     # Run all tests (unit + integration)
 cargo test --lib               # Unit tests only
 cargo test --test integration  # Integration tests only
 cargo test <test_name>         # Run a single test by name
+cargo fmt                      # Format code
+cargo clippy -- -D warnings    # Lint (warnings treated as errors)
 ```
+
+## Pre-commit checks
+
+**Always run `cargo fmt` and `cargo clippy -- -D warnings` after making changes, before committing.** Fix any issues they report before creating a commit.
 
 ## Architecture
 

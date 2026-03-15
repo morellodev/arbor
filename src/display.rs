@@ -61,21 +61,21 @@ fn colored_branch(entry: &WorktreeInfo) -> String {
 
 fn colored_state(entry: &WorktreeInfo) -> String {
     if entry.dirty {
-        "dirty".yellow().to_string()
+        "\u{2717}".yellow().to_string()
     } else {
-        "clean".green().to_string()
+        "\u{2713}".green().to_string()
     }
 }
 
 fn colored_tracking(entry: &WorktreeInfo) -> String {
     match entry.tracking {
-        Some((0, 0)) => "up-to-date".green().to_string(),
-        Some((ahead, 0)) => format!("ahead {ahead}").cyan().to_string(),
-        Some((0, behind)) => format!("behind {behind}").magenta().to_string(),
-        Some((ahead, behind)) => format!("ahead {ahead}, behind {behind}")
+        Some((0, 0)) => "=".green().to_string(),
+        Some((ahead, 0)) => format!("\u{2191}{ahead}").cyan().to_string(),
+        Some((0, behind)) => format!("\u{2193}{behind}").magenta().to_string(),
+        Some((ahead, behind)) => format!("\u{2191}{ahead} \u{2193}{behind}")
             .magenta()
             .to_string(),
-        None => "no upstream".dimmed().to_string(),
+        None => "\u{2014}".dimmed().to_string(),
     }
 }
 
@@ -84,13 +84,8 @@ pub fn format_worktree_item(entry: &WorktreeInfo) -> String {
     let state = colored_state(entry);
     let tracking = colored_tracking(entry);
     let path = shorten_path(&entry.path).dimmed().to_string();
-    let warning = if entry.dirty {
-        " ⚠".yellow().to_string()
-    } else {
-        String::new()
-    };
 
-    format!("{branch}  [{state}]  {tracking}  {path}{warning}")
+    format!("{branch}  {state}  {tracking}  {path}")
 }
 
 pub struct WorktreeSummary {
@@ -179,14 +174,15 @@ fn new_table() -> Table {
 pub fn print_table(entries: &[WorktreeInfo], show_paths: bool) {
     let mut table = new_table();
 
+    let mut header = vec![
+        "Branch".dimmed().to_string(),
+        "State".dimmed().to_string(),
+        "Tracking".dimmed().to_string(),
+    ];
     if show_paths {
-        table.set_header(vec![
-            "Branch".dimmed().to_string(),
-            "State".dimmed().to_string(),
-            "Tracking".dimmed().to_string(),
-            "Path".dimmed().to_string(),
-        ]);
+        header.push("Path".dimmed().to_string());
     }
+    table.set_header(header);
 
     for entry in entries {
         let mut row = vec![

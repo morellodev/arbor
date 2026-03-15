@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.2](https://github.com/morellodev/arbor/compare/v0.2.1...v0.2.2) - 2026-03-15
+
+### Added
+
+- add post-create hooks for worktrees
+
+### Fixed
+
+- enable git_only mode in release-plz config
+- isolate git config in integration tests to fix Windows flakiness
+
+### Other
+
+- add diagnostic stderr to add_no_arbor_toml_succeeds_silently
+- add tapes for arbor clean showcase
+- move tapes to tapes/ directory and rewrite demo
+- deduplicate conditions, add safeguards, fix SHA computation
+- fix workflow conditions and improve release pipeline
+- fix release workflow for merge commits from release PRs
+
 ## [0.2.1](https://github.com/morellodev/arbor/compare/v0.2.0...v0.2.1) - 2026-03-15
 
 ### Added

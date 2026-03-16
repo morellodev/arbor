@@ -1,6 +1,8 @@
+use std::fs;
 use std::io::IsTerminal;
+use std::path::{Path, PathBuf};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use clap::CommandFactory;
 use clap_complete::generate;
 
@@ -35,30 +37,118 @@ impl Shell {
             )
         })
     }
+
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Bash => "bash",
+            Self::Zsh => "zsh",
+            Self::Fish => "fish",
+        }
+    }
 }
 
-pub fn run(shell: Option<&str>) -> Result<()> {
+fn config_file_path(shell: &Shell) -> Result<PathBuf> {
+    let home = dirs::home_dir().context("Could not determine home directory")?;
+    Ok(match shell {
+        Shell::Bash => home.join(".bashrc"),
+        Shell::Zsh => home.join(".zshrc"),
+        Shell::Fish => home.join(".config/fish/config.fish"),
+    })
+}
+
+fn eval_line(shell: &Shell) -> &'static str {
+    match shell {
+        Shell::Bash => r#"eval "$(arbor init bash)""#,
+        Shell::Zsh => r#"eval "$(arbor init zsh)""#,
+        Shell::Fish => "arbor init fish | source",
+    }
+}
+
+fn already_configured(path: &Path, shell: &Shell) -> Result<bool> {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(e).context(format!("Failed to read {}", path.display())),
+    };
+    let needle = format!("arbor init {}", shell.name());
+    Ok(content
+        .lines()
+        .any(|line| !line.trim_start().starts_with('#') && line.contains(&needle)))
+}
+
+fn inject_into_config(path: &Path, line: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create directory {}", parent.display()))?;
+    }
+
+    let mut content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e).context(format!("Failed to read {}", path.display())),
+    };
+
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+
+    content.push_str("# arbor\n");
+    content.push_str(line);
+    content.push('\n');
+
+    fs::write(path, content).with_context(|| format!("Failed to write {}", path.display()))
+}
+
+fn print_restart_hint(config_path: &Path) {
+    display::print_note("To activate now, run:");
+    display::print_hint(&format!("source {}", display::shorten_path(config_path)));
+}
+
+pub fn run(shell: Option<&str>, inject: bool) -> Result<()> {
     let shell = match shell {
         Some(s) => Shell::parse(s)?,
         None => Shell::detect()?,
     };
 
-    if std::io::stdout().is_terminal() {
-        print_setup_instructions(&shell)
-    } else {
-        print_script(&shell)
+    if !inject && !std::io::stdout().is_terminal() {
+        return print_script(&shell);
     }
-}
 
-fn print_setup_instructions(shell: &Shell) -> Result<()> {
-    let (config_file, eval_line) = match shell {
-        Shell::Bash => ("~/.bashrc", r#"eval "$(arbor init bash)""#),
-        Shell::Zsh => ("~/.zshrc", r#"eval "$(arbor init zsh)""#),
-        Shell::Fish => ("~/.config/fish/config.fish", "arbor init fish | source"),
+    let config_path = config_file_path(&shell)?;
+    let line = eval_line(&shell);
+    let short_path = display::shorten_path(&config_path);
+
+    if already_configured(&config_path, &shell)? {
+        display::print_ok("Shell integration is already configured");
+        display::print_hint(&format!("Found in {short_path}"));
+        return Ok(());
+    }
+
+    let should_inject = if inject {
+        true
+    } else {
+        display::print_note(&format!("This will add the following to {short_path}:"));
+        eprintln!();
+        display::print_hint("# arbor");
+        display::print_hint(line);
+        eprintln!();
+
+        dialoguer::Confirm::new()
+            .with_prompt("Add it now?")
+            .default(true)
+            .interact_opt()?
+            == Some(true)
     };
 
-    display::print_note(&format!("Add the following to {config_file}:"));
-    display::print_hint(eval_line);
+    if should_inject {
+        inject_into_config(&config_path, line)?;
+        display::print_ok(&format!("Added shell integration to {short_path}"));
+        print_restart_hint(&config_path);
+    } else {
+        display::print_note(
+            "No changes made. To set up manually, add the lines above to your shell config",
+        );
+    }
 
     Ok(())
 }

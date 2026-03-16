@@ -150,6 +150,13 @@ jobs:
               bin.install "arbor"
             end
 
+            def caveats
+              <<~EOS
+                To set up shell integration (completions + cd wrapper), run:
+                  arbor init
+              EOS
+            end
+
             test do
               assert_match version.to_s, shell_output("#{bin}/arbor --version")
             end

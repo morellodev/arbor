@@ -141,5 +141,8 @@ Examples:
     Init {
         /// Shell to generate integration for (bash, zsh, fish). Auto-detected from $SHELL if omitted.
         shell: Option<String>,
+        /// Automatically add the eval line to your shell config (non-interactive)
+        #[arg(long)]
+        inject: bool,
     },
 }

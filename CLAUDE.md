@@ -27,7 +27,7 @@ cargo clippy -- -D warnings    # Lint (warnings treated as errors)
 ## Architecture
 
 - **`src/main.rs`** — Entry point. `main()` calls `run()` and formats errors with `display::print_error`. `run()` parses CLI args (clap) and dispatches to command handlers.
-- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, Switch, List, Remove, Dir, Clone, Clean, Prune, Status, Fetch, Init).
+- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, Switch, List, Remove, Dir, Clone, Clean, Prune, Status, Fetch, Init). Init has an `--inject` flag for non-interactive shell config injection.
 - **`src/config.rs`** — Loads/creates `~/.arbor/config.toml` with tilde expansion. Uses serde + toml.
 - **`src/git/`** — All git operations via `std::process::Command`, split into submodules:
   - `runner.rs` — `run_git`, `run_git_output`, `run_git_inherited` (`pub(super)`)

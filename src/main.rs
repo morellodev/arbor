@@ -66,6 +66,6 @@ fn run(cli: Cli) -> Result<()> {
         Command::Prune => commands::prune(),
         Command::Status { short, all } => commands::status(&config, short, all),
         Command::Fetch { all } => commands::fetch(&config, all),
-        Command::Init { ref shell } => commands::init(shell.as_deref()),
+        Command::Init { ref shell, inject } => commands::init(shell.as_deref(), inject),
     }
 }

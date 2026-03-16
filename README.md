@@ -64,13 +64,16 @@ arbor rm -d feat/login
 
 ## Shell integration
 
-Run `arbor init` and it will show you what to add to your shell config:
+Run `arbor init` to set up shell integration. It detects your shell, shows what it will add and where, and offers to do it for you:
 
 ```sh
 arbor init
-# ▸ Add the following to ~/.zshrc:
+# ▸ This will add the following to ~/.zshrc:
 #
+#   # arbor
 #   eval "$(arbor init zsh)"
+#
+# ? Add it now? [Y/n]
 ```
 
 This sets up two things: a wrapper so `arbor add`, `arbor switch`, and `arbor clone` automatically `cd` into the worktree, and dynamic tab completions for branch names.
@@ -78,11 +81,13 @@ This sets up two things: a wrapper so `arbor add`, `arbor switch`, and `arbor cl
 The shell is auto-detected from `$SHELL`. You can also specify it explicitly:
 
 ```sh
-# ~/.zshrc or ~/.bashrc
-eval "$(arbor init zsh)"    # or bash
+arbor init zsh    # or bash, fish
+```
 
-# Fish: ~/.config/fish/config.fish
-arbor init fish | source
+For scripted or dotfile-bootstrap workflows, use `--inject` to skip the prompt:
+
+```sh
+arbor init --inject
 ```
 
 ## Commands
@@ -99,7 +104,7 @@ arbor init fish | source
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
 | `arbor clean [-d]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. |
 | `arbor prune` | | Remove stale worktree references. |
-| `arbor init [shell]` | | Set up shell integration (cd wrapper + completions). Auto-detects shell from `$SHELL`. |
+| `arbor init [shell] [--inject]` | | Set up shell integration (cd wrapper + completions). Auto-detects shell from `$SHELL`. `--inject` writes to your shell config non-interactively. |
 
 ## How it works
 

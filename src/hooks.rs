@@ -4,10 +4,11 @@ use std::process::Stdio;
 use anyhow::Context;
 use serde::Deserialize;
 
-use crate::display;
+use crate::{config, display, git};
 
 #[derive(Debug, Deserialize)]
 struct ProjectConfig {
+    worktree_dir: Option<String>,
     #[serde(default)]
     hooks: Hooks,
 }
@@ -87,6 +88,35 @@ fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(String, String)]) -> any
     Ok(())
 }
 
+pub fn resolve_worktree_dir(raw: &str, repo_root: &Path) -> anyhow::Result<PathBuf> {
+    let path = Path::new(raw);
+    if path.is_absolute() {
+        Ok(path.to_path_buf())
+    } else if raw.starts_with('~') {
+        config::expand_tilde(path)
+    } else {
+        Ok(repo_root.join(raw))
+    }
+}
+
+pub fn load_worktree_dir_from_path(dir: &Path) -> anyhow::Result<Option<String>> {
+    let config = match load_project_config(dir)? {
+        Some(c) => c,
+        None => return Ok(None),
+    };
+    Ok(config.worktree_dir)
+}
+
+pub fn load_worktree_dir_from_git(cwd: &Path) -> anyhow::Result<Option<String>> {
+    let raw = match git::show_file_from_head(".arbor.toml", cwd) {
+        Ok(content) => content,
+        Err(_) => return Ok(None),
+    };
+    let config: ProjectConfig =
+        toml::from_str(&raw).with_context(|| "Failed to parse .arbor.toml from HEAD")?;
+    Ok(config.worktree_dir)
+}
+
 pub fn run_post_create(ctx: &HookContext) {
     let config = match load_project_config(&ctx.worktree_path) {
         Ok(Some(config)) => config,
@@ -162,6 +192,59 @@ post_create = ["npm install", "cp .env.example .env"]
     fn parse_malformed_toml() {
         let result = toml::from_str::<ProjectConfig>("not valid { toml");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_worktree_dir_with_hooks() {
+        let toml_str = r#"
+worktree_dir = ".claude/worktrees"
+
+[hooks]
+post_create = "npm install"
+"#;
+        let config: ProjectConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.worktree_dir.as_deref(), Some(".claude/worktrees"));
+        assert!(config.hooks.post_create.is_some());
+    }
+
+    #[test]
+    fn parse_worktree_dir_without_hooks() {
+        let toml_str = r#"
+worktree_dir = ".claude/worktrees"
+"#;
+        let config: ProjectConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.worktree_dir.as_deref(), Some(".claude/worktrees"));
+        assert!(config.hooks.post_create.is_none());
+    }
+
+    #[test]
+    fn parse_no_worktree_dir() {
+        let toml_str = r#"
+[hooks]
+post_create = "npm install"
+"#;
+        let config: ProjectConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.worktree_dir.is_none());
+        assert!(config.hooks.post_create.is_some());
+    }
+
+    #[test]
+    fn resolve_absolute_worktree_dir() {
+        let result = resolve_worktree_dir("/tmp/worktrees", Path::new("/some/repo")).unwrap();
+        assert_eq!(result, PathBuf::from("/tmp/worktrees"));
+    }
+
+    #[test]
+    fn resolve_tilde_worktree_dir() {
+        let home = dirs::home_dir().unwrap();
+        let result = resolve_worktree_dir("~/custom/wt", Path::new("/some/repo")).unwrap();
+        assert_eq!(result, home.join("custom/wt"));
+    }
+
+    #[test]
+    fn resolve_relative_worktree_dir() {
+        let result = resolve_worktree_dir(".claude/worktrees", Path::new("/some/repo")).unwrap();
+        assert_eq!(result, PathBuf::from("/some/repo/.claude/worktrees"));
     }
 
     #[test]

@@ -55,7 +55,7 @@ fn run(cli: Cli) -> Result<()> {
             ref branch,
             force,
             delete_branch,
-        } => commands::remove(&config, branch, force, delete_branch),
+        } => commands::remove(branch, force, delete_branch),
         Command::Dir { ref branch } => commands::dir(branch),
         Command::Clone {
             ref url,

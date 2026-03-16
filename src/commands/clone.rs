@@ -32,7 +32,11 @@ pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Res
     display::print_ok(&format!("Cloned to {}", display::shorten_path(&dest)));
 
     if !no_worktree && let Ok(default_branch) = git::head_branch(&dest) {
-        let wt_path = config.worktree_path(&name, &default_branch);
+        let wt_path = match hooks::load_worktree_dir_from_git(&dest)? {
+            Some(raw) => hooks::resolve_worktree_dir(&raw, &dest)?
+                .join(git::sanitize_branch(&default_branch)),
+            None => config.worktree_path(&name, &default_branch),
+        };
 
         fs::create_dir_all(wt_path.parent().unwrap())
             .with_context(|| format!("Failed to create directory: {}", wt_path.display()))?;

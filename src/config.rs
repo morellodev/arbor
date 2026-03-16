@@ -58,7 +58,7 @@ fn config_dir() -> Result<PathBuf> {
     Ok(home.join(CONFIG_DIR_NAME))
 }
 
-fn expand_tilde(path: &Path) -> Result<PathBuf> {
+pub(crate) fn expand_tilde(path: &Path) -> Result<PathBuf> {
     let s = path.to_string_lossy();
     if let Some(stripped) = s.strip_prefix('~') {
         let home = dirs::home_dir().context("Could not determine home directory")?;

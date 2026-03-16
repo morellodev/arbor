@@ -5,6 +5,10 @@ use anyhow::{Context, Result};
 use super::runner::{run_git, run_git_inherited, run_git_output};
 use super::types::{WorktreeInfo, parse_worktree_list, sanitize_branch};
 
+pub fn show_file_from_head(file: &str, cwd: &Path) -> Result<String> {
+    run_git(&["show", &format!("HEAD:{file}")], Some(cwd))
+}
+
 pub fn repo_toplevel() -> Result<PathBuf> {
     let porcelain = run_git(&["worktree", "list", "--porcelain"], None)
         .context("Not inside a git repository")?;

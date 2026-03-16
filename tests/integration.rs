@@ -1001,3 +1001,185 @@ fn init_inject_already_configured() {
     let count = zshrc.matches("arbor init zsh").count();
     assert_eq!(count, 1, "should not duplicate the line, got: {count}");
 }
+
+// ── local worktree_dir override ─────────────────────────────────────
+
+fn commit_arbor_toml(env: &TestEnv, content: &str) {
+    fs::write(env.repo.path().join(".arbor.toml"), content).unwrap();
+    git(&env.repo, &["add", ".arbor.toml"], env.home.path());
+    git(
+        &env.repo,
+        &["commit", "-m", "add .arbor.toml"],
+        env.home.path(),
+    );
+}
+
+#[test]
+fn add_with_local_worktree_dir_relative() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "add should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let printed_path = stdout.trim();
+    let expected = env.repo.path().join(".worktrees/feat");
+    let actual = fs::canonicalize(printed_path).unwrap();
+    let expected_canon = fs::canonicalize(&expected).unwrap();
+    assert_eq!(
+        actual,
+        expected_canon,
+        "worktree should be at {}, got {}",
+        expected.display(),
+        printed_path
+    );
+}
+
+#[test]
+fn add_with_local_worktree_dir_absolute() {
+    let env = TestEnv::new();
+    let abs_dir = env.home.path().join("custom-wt");
+    let abs_str = abs_dir.to_string_lossy().replace('\\', "/");
+    commit_arbor_toml(&env, &format!("worktree_dir = \"{abs_str}\"\n"));
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "add should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let printed_path = stdout.trim();
+    let actual = fs::canonicalize(printed_path).unwrap();
+    let expected = fs::canonicalize(abs_dir.join("feat")).unwrap();
+    assert_eq!(
+        actual, expected,
+        "worktree should be at absolute path, got {}",
+        printed_path
+    );
+}
+
+#[test]
+fn add_with_local_worktree_dir_omits_repo_name() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let printed_path = stdout.trim();
+
+    // Path should be <repo>/.worktrees/feat, NOT <repo>/.worktrees/<repo_name>/feat
+    assert!(
+        Path::new(printed_path).ends_with(Path::new(".worktrees").join("feat")),
+        "path should end with .worktrees/feat (no repo name subdir), got: {printed_path}"
+    );
+}
+
+#[test]
+fn add_with_local_worktree_dir_is_idempotent() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+
+    let first = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(first.status.success());
+
+    let second = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(second.status.success());
+
+    let path_1 = String::from_utf8_lossy(&first.stdout).trim().to_string();
+    let path_2 = String::from_utf8_lossy(&second.stdout).trim().to_string();
+    assert_eq!(path_1, path_2, "should return the same path both times");
+}
+
+#[test]
+fn add_with_local_worktree_dir_from_secondary_worktree() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+
+    let first = env.arbor(&["add", "feat-a"]).output().unwrap();
+    assert!(first.status.success());
+    let wt_a = String::from_utf8_lossy(&first.stdout).trim().to_string();
+
+    let second = env
+        .arbor_in(Path::new(&wt_a), &["add", "feat-b"])
+        .output()
+        .unwrap();
+    assert!(
+        second.status.success(),
+        "add from secondary worktree should succeed, stderr: {}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+
+    let wt_b = String::from_utf8_lossy(&second.stdout).trim().to_string();
+
+    // Both should be under the same override dir
+    let parent_a = Path::new(&wt_a).parent().unwrap();
+    let parent_b = Path::new(&wt_b).parent().unwrap();
+    assert_eq!(
+        fs::canonicalize(parent_a).unwrap(),
+        fs::canonicalize(parent_b).unwrap(),
+        "both worktrees should be under the same override dir"
+    );
+}
+
+#[test]
+fn remove_works_with_local_worktree_dir() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+    assert!(Path::new(&wt_path).exists());
+
+    let rm_out = env.arbor(&["remove", "feat"]).output().unwrap();
+    assert!(
+        rm_out.status.success(),
+        "remove should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+    assert!(
+        !Path::new(&wt_path).exists(),
+        "worktree directory should be gone after remove"
+    );
+}
+
+#[test]
+fn switch_works_with_local_worktree_dir() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let add_path = fs::canonicalize(String::from_utf8_lossy(&add_out.stdout).trim()).unwrap();
+
+    let switch_out = env.arbor(&["switch", "feat"]).output().unwrap();
+    assert!(switch_out.status.success());
+
+    let switch_path = fs::canonicalize(String::from_utf8_lossy(&switch_out.stdout).trim()).unwrap();
+    assert_eq!(add_path, switch_path);
+}
+
+#[test]
+fn dir_works_with_local_worktree_dir() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let add_path = fs::canonicalize(String::from_utf8_lossy(&add_out.stdout).trim()).unwrap();
+
+    let dir_out = env.arbor(&["dir", "feat"]).output().unwrap();
+    assert!(dir_out.status.success());
+
+    let dir_path = fs::canonicalize(String::from_utf8_lossy(&dir_out.stdout).trim()).unwrap();
+    assert_eq!(add_path, dir_path);
+}

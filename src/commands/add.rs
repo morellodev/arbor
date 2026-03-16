@@ -7,7 +7,7 @@ use crate::{display, git, hooks};
 
 pub fn run(config: &Config, branch: &str, repo: Option<&str>, no_hooks: bool) -> Result<()> {
     let (repo_name, repo_cwd) = resolve_repo(config, repo)?;
-    let wt_path = config.worktree_path(&repo_name, branch);
+    let wt_path = resolve_wt_path(config, &repo_name, branch, repo_cwd.as_deref())?;
 
     if wt_path.exists() {
         display::print_note(&format!(
@@ -55,6 +55,32 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>, no_hooks: bool) ->
 
     display::print_path_hint(&wt_path);
     Ok(())
+}
+
+fn resolve_wt_path(
+    config: &Config,
+    repo_name: &str,
+    branch: &str,
+    repo_cwd: Option<&std::path::Path>,
+) -> Result<std::path::PathBuf> {
+    let local_override = match repo_cwd {
+        Some(bare_path) => {
+            let raw = hooks::load_worktree_dir_from_git(bare_path)?;
+            raw.map(|r| hooks::resolve_worktree_dir(&r, bare_path))
+                .transpose()?
+        }
+        None => {
+            let repo_root = git::repo_toplevel()?;
+            let raw = hooks::load_worktree_dir_from_path(&repo_root)?;
+            raw.map(|r| hooks::resolve_worktree_dir(&r, &repo_root))
+                .transpose()?
+        }
+    };
+
+    match local_override {
+        Some(dir) => Ok(dir.join(git::sanitize_branch(branch))),
+        None => Ok(config.worktree_path(repo_name, branch)),
+    }
 }
 
 fn resolve_repo(

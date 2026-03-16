@@ -132,7 +132,32 @@ repos_dir = "~/.arbor/repos"
 worktree_dir = "~/.arbor/worktrees"
 ```
 
-Change these to store worktrees and bare repos somewhere else.
+Change these to store worktrees and bare repos somewhere else. You can also override the worktree directory per-project — see [Per-project worktree directory](#per-project-worktree-directory) below.
+
+## Per-project worktree directory
+
+By default, arbor puts all worktrees under `~/.arbor/worktrees`. You can override
+this per-project by adding `worktree_dir` to your `.arbor.toml`:
+
+```toml
+worktree_dir = ".claude/worktrees"
+```
+
+This creates worktrees at `<project-root>/.claude/worktrees/<branch>` instead
+of the global default. Useful for keeping worktrees colocated with the project
+(e.g. for Claude Code parallel sessions).
+
+**Path resolution:**
+
+| Value | Resolves to |
+| --- | --- |
+| `.claude/worktrees` | `<repo-root>/.claude/worktrees/<branch>` |
+| `~/my-worktrees` | `$HOME/my-worktrees/<branch>` |
+| `/tmp/worktrees` | `/tmp/worktrees/<branch>` |
+
+Relative paths are resolved from the repository root. When using the local
+override, there is no `<repo-name>` subdirectory — the config is already
+scoped to one project.
 
 ## Hooks
 

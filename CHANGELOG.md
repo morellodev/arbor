@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.5](https://github.com/morellodev/arbor/compare/v0.2.4...v0.2.5) - 2026-03-16
+
+### Added
+
+- interactive fuzzy selection for `arbor switch`
+
 ## [0.2.4](https://github.com/morellodev/arbor/compare/v0.2.3...v0.2.4) - 2026-03-16
 
 ### Added

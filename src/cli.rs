@@ -40,10 +40,11 @@ Examples:
     #[command(after_help = "\
 Examples:
   arbor switch feature/auth
-  arbor switch feature-auth")]
+  arbor switch feature-auth
+  arbor switch              # interactive fuzzy selection")]
     Switch {
-        /// Branch name to switch to
-        branch: String,
+        /// Branch name to switch to (interactive selection if omitted)
+        branch: Option<String>,
     },
 
     /// List worktrees for the current repository

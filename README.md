@@ -52,6 +52,9 @@ arbor add feat/login
 # Switch to an existing worktree
 arbor switch main
 
+# Or pick one interactively
+arbor switch
+
 # See all worktrees
 arbor ls
 
@@ -95,7 +98,7 @@ arbor init --inject
 | Command | Alias | Description |
 | --- | --- | --- |
 | `arbor add <branch> [--repo <name>] [--no-hooks]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. `--repo` lets you add from any directory. `--no-hooks` skips post-create hooks. |
-| `arbor switch <branch>` | | Switch to an existing worktree. Errors if the worktree doesn't exist. |
+| `arbor switch [branch]` | | Switch to an existing worktree. With no argument, shows an interactive fuzzy selector. |
 | `arbor list [--all] [--json]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. |
 | `arbor remove <branch> [-f] [-d]` | `rm` | Remove a worktree. `-f` forces removal of dirty worktrees. `-d` also deletes the local branch. |
 | `arbor dir <branch>` | | Print the worktree path for a branch. Accepts both `feature/auth` and `feature-auth`. |

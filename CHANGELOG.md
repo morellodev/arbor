@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.6](https://github.com/morellodev/arbor/compare/v0.2.5...v0.2.6) - 2026-03-17
+
+### Added
+
+- add `cd` alias for the `switch` command
+
+### Fixed
+
+- reset SIGPIPE to prevent broken pipe panic when piping stdout
+- redirect help/version/error output to stderr
+
 ## [0.2.5](https://github.com/morellodev/arbor/compare/v0.2.4...v0.2.5) - 2026-03-16
 
 ### Added

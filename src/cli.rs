@@ -37,11 +37,14 @@ Examples:
     },
 
     /// Switch to an existing worktree
-    #[command(after_help = "\
+    #[command(
+        visible_alias = "cd",
+        after_help = "\
 Examples:
   arbor switch feature/auth
   arbor switch feature-auth
-  arbor switch              # interactive fuzzy selection")]
+  arbor switch              # interactive fuzzy selection"
+    )]
     Switch {
         /// Branch name to switch to (interactive selection if omitted)
         branch: Option<String>,

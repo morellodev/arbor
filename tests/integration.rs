@@ -454,6 +454,15 @@ fn switch_with_sanitized_name() {
     );
 }
 
+#[test]
+fn switch_alias_cd_works() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["cd", "feat"]).output().unwrap();
+    assert!(output.status.success());
+}
+
 // ── list ─────────────────────────────────────────────────────────────
 
 #[test]

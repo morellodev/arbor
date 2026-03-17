@@ -58,7 +58,7 @@ Releases are automated via [release-plz](https://release-plz.ieni.dev/). On each
 
 Keep CLAUDE.md in sync as the codebase evolves. When adding commands, changing architecture, or updating conventions, update the relevant sections here.
 
-Command and flag completions in `src/commands/init.rs` are auto-generated from `cli.rs` via `clap_complete`, so they stay in sync automatically. Branch completion snippets for `add`, `switch`, `rm`, `remove`, and `dir` are appended as custom shell constants (`BASH_BRANCH_COMPLETIONS`, `ZSH_BRANCH_COMPLETIONS`, `FISH_BRANCH_COMPLETIONS`). The shell wrapper's case list (`add|switch|clone|remove|rm|clean`) must also be updated if a new command prints a path to stdout for cd purposes.
+Command and flag completions in `src/commands/init.rs` are auto-generated from `cli.rs` via `clap_complete`, so they stay in sync automatically. Branch completion snippets for `add`, `switch`, `cd`, `rm`, `remove`, and `dir` are appended as custom shell constants (`BASH_BRANCH_COMPLETIONS`, `ZSH_BRANCH_COMPLETIONS`, `FISH_BRANCH_COMPLETIONS`). The shell wrapper's case list (`add|switch|cd|clone|remove|rm|clean`) must also be updated if a new command prints a path to stdout for cd purposes.
 
 ## Integration tests
 

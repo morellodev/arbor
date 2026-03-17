@@ -183,7 +183,7 @@ fn print_script(shell: &Shell) -> Result<()> {
 
 const SHELL_WRAPPER: &str = r#"arbor() {
   case "$1" in
-    add|switch|clone|remove|rm|clean)
+    add|switch|cd|clone|remove|rm|clean)
       local dir
       dir=$(command arbor "$@") || return $?
       if [ -n "$dir" ]; then cd "$dir"; fi
@@ -196,7 +196,7 @@ const SHELL_WRAPPER: &str = r#"arbor() {
 
 const FISH_WRAPPER: &str = r#"function arbor --wraps arbor
   switch $argv[1]
-    case add switch clone remove rm clean
+    case add switch cd clone remove rm clean
       set -l dir (command arbor $argv)
       or return $status
       if test -n "$dir"
@@ -216,7 +216,7 @@ _arbor_branches() {
       branches=$(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u)
       COMPREPLY=($(compgen -W "$branches" -- "${COMP_WORDS[COMP_CWORD]}"))
       ;;
-    switch|rm|remove|dir)
+    switch|cd|rm|remove|dir)
       local branches
       branches=$(git worktree list --porcelain 2>/dev/null | grep '^branch ' | sed 's|^branch refs/heads/||')
       COMPREPLY=($(compgen -W "$branches" -- "${COMP_WORDS[COMP_CWORD]}"))
@@ -234,7 +234,7 @@ _arbor_branches() {
       local -a branches=($(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u))
       _describe 'branch' branches
       ;;
-    switch|rm|remove|dir)
+    switch|cd|rm|remove|dir)
       local -a branches=($(git worktree list --porcelain 2>/dev/null | grep '^branch ' | sed 's|^branch refs/heads/||'))
       _describe 'branch' branches
       ;;
@@ -246,5 +246,5 @@ compdef _arbor_branches arbor
 const FISH_BRANCH_COMPLETIONS: &str = r#"
 complete -c arbor -n '__fish_seen_subcommand_from add' -f -a '(git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/ 2>/dev/null | string replace -r "^origin/" "" | sort -u)'
 
-complete -c arbor -n '__fish_seen_subcommand_from switch rm remove dir' -f -a '(git worktree list --porcelain 2>/dev/null | string match -r "^branch refs/heads/(.*)" | string replace -r "^branch refs/heads/" "")'
+complete -c arbor -n '__fish_seen_subcommand_from switch cd rm remove dir' -f -a '(git worktree list --porcelain 2>/dev/null | string match -r "^branch refs/heads/(.*)" | string replace -r "^branch refs/heads/" "")'
 "#;

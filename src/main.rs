@@ -15,7 +15,13 @@ use cli::{Cli, ColorMode, Command};
 use config::Config;
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(e) => {
+            eprint!("{}", e.render().ansi());
+            process::exit(e.exit_code());
+        }
+    };
     configure_color(&cli.color);
 
     if let Err(e) = run(cli) {

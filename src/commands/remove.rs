@@ -14,10 +14,9 @@ pub fn run(branch: &str, force: bool, delete_branch: bool) -> Result<()> {
         bail!("Worktree has uncommitted changes. Use --force to remove anyway.");
     }
 
-    let canonical_wt = wt_path.canonicalize().unwrap_or_else(|_| wt_path.clone());
     let toplevel = std::env::current_dir()
         .ok()
-        .filter(|cwd| cwd.starts_with(&canonical_wt))
+        .filter(|cwd| display::cwd_is_inside(cwd, &wt_path))
         .map(|_| git::repo_toplevel())
         .transpose()?;
 

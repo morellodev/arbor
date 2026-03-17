@@ -5,6 +5,18 @@ use comfy_table::{ContentArrangement, Table, presets::NOTHING};
 
 use crate::git::WorktreeInfo;
 
+pub fn cwd_is_inside(cwd: &Path, worktree_path: &Path) -> bool {
+    let canonical = worktree_path
+        .canonicalize()
+        .unwrap_or_else(|_| worktree_path.to_path_buf());
+    cwd.starts_with(&canonical)
+}
+
+fn find_current_index(entries: &[WorktreeInfo]) -> Option<usize> {
+    let cwd = std::env::current_dir().ok()?;
+    entries.iter().position(|wt| cwd_is_inside(&cwd, &wt.path))
+}
+
 pub fn print_ok(msg: &str) {
     eprintln!("{} {msg}", "✓".green().bold());
 }
@@ -87,18 +99,28 @@ fn branch_visible_len(entry: &WorktreeInfo) -> usize {
 }
 
 pub fn format_worktree_items(entries: &[WorktreeInfo]) -> Vec<String> {
+    let current = find_current_index(entries);
     let max_branch = entries.iter().map(branch_visible_len).max().unwrap_or(0);
 
     entries
         .iter()
-        .map(|entry| {
+        .enumerate()
+        .map(|(i, entry)| {
+            let marker = if current == Some(i) {
+                format!("{} ", "*".green().bold())
+            } else {
+                "  ".to_string()
+            };
             let branch = colored_branch(entry);
             let pad = max_branch - branch_visible_len(entry);
             let state = colored_state(entry);
             let tracking = colored_tracking(entry);
             let path = shorten_path(&entry.path).dimmed().to_string();
 
-            format!("{branch}{}  {state}  {tracking}  {path}", " ".repeat(pad))
+            format!(
+                "{marker}{branch}{}  {state}  {tracking}  {path}",
+                " ".repeat(pad)
+            )
         })
         .collect()
 }
@@ -231,9 +253,11 @@ fn new_table() -> Table {
 }
 
 pub fn print_table(entries: &[WorktreeInfo], show_paths: bool) {
+    let current = find_current_index(entries);
     let mut table = new_table();
 
     let mut header = vec![
+        "".to_string(),
         "Branch".dimmed().to_string(),
         "State".dimmed().to_string(),
         "Tracking".dimmed().to_string(),
@@ -243,8 +267,14 @@ pub fn print_table(entries: &[WorktreeInfo], show_paths: bool) {
     }
     table.set_header(header);
 
-    for entry in entries {
+    for (i, entry) in entries.iter().enumerate() {
+        let marker = if current == Some(i) {
+            format!("{}", "*".green().bold())
+        } else {
+            String::new()
+        };
         let mut row = vec![
+            marker,
             colored_branch(entry),
             colored_state(entry),
             colored_tracking(entry),

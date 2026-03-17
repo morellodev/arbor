@@ -101,16 +101,10 @@ pub fn run(delete_branch: bool) -> Result<()> {
             return Ok(());
         }
     };
-
     let cwd = std::env::current_dir().ok();
     let cwd_worktree = cwd.as_ref().and_then(|cwd| {
         selections.iter().find_map(|&idx| {
-            let canonical = worktrees[idx]
-                .path
-                .canonicalize()
-                .unwrap_or_else(|_| worktrees[idx].path.clone());
-            cwd.starts_with(&canonical)
-                .then(|| worktrees[idx].path.clone())
+            display::cwd_is_inside(cwd, &worktrees[idx].path).then(|| worktrees[idx].path.clone())
         })
     });
     let toplevel = if cwd_worktree.is_some() {

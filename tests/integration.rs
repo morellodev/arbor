@@ -519,6 +519,49 @@ fn list_shows_worktrees() {
     );
 }
 
+#[test]
+fn list_shows_current_indicator_from_worktree() {
+    let env = TestEnv::new();
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    let output = env
+        .arbor_in(Path::new(&wt_path), &["list"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains('*'),
+        "list from inside worktree should show * indicator, got: {stdout}"
+    );
+}
+
+#[test]
+fn list_json_does_not_contain_indicator() {
+    let env = TestEnv::new();
+
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    let output = env
+        .arbor_in(Path::new(&wt_path), &["list", "--json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains('*'),
+        "JSON output should not contain * indicator, got: {stdout}"
+    );
+
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("should be valid JSON");
+    assert!(parsed.is_array(), "JSON output should be an array");
+}
+
 // ── status ───────────────────────────────────────────────────────────
 
 #[test]

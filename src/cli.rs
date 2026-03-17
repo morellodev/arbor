@@ -92,9 +92,13 @@ Examples:
     },
 
     /// Print the filesystem path of the worktree for a branch
+    #[command(after_help = "\
+Examples:
+  arbor dir feature/auth
+  arbor dir              # interactive fuzzy selection")]
     Dir {
-        /// Branch name to look up
-        branch: String,
+        /// Branch name to look up (interactive selection if omitted)
+        branch: Option<String>,
     },
 
     /// Clone a repository as a bare repo for worktree-based workflows

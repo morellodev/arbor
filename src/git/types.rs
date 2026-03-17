@@ -87,6 +87,26 @@ fn serialize_tracking<S: serde::Serializer>(
     }
 }
 
+pub struct PrunedWorktree {
+    pub name: String,
+    pub reason: String,
+}
+
+pub fn parse_prune_output(stderr: &str) -> Vec<PrunedWorktree> {
+    stderr
+        .lines()
+        .filter_map(|line| {
+            let rest = line.strip_prefix("Removing ")?;
+            let (path, reason) = rest.split_once(": ")?;
+            let name = Path::new(path).file_name()?.to_str()?;
+            Some(PrunedWorktree {
+                name: name.to_string(),
+                reason: reason.to_string(),
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,5 +202,43 @@ branch refs/heads/develop
             PathBuf::from("/Users/jane doe/My Projects/cool app")
         );
         assert_eq!(result[0].branch.as_deref(), Some("develop"));
+    }
+
+    #[test]
+    fn parse_prune_single_entry() {
+        let input = "Removing worktrees/foo: gitdir file points to non-existing location";
+        let result = parse_prune_output(input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "foo");
+        assert_eq!(
+            result[0].reason,
+            "gitdir file points to non-existing location"
+        );
+    }
+
+    #[test]
+    fn parse_prune_multiple_entries() {
+        let input = "\
+Removing worktrees/foo: gitdir file points to non-existing location
+Removing worktrees/bar: gitdir file points to non-existing location";
+        let result = parse_prune_output(input);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].name, "foo");
+        assert_eq!(result[1].name, "bar");
+    }
+
+    #[test]
+    fn parse_prune_empty_input() {
+        let result = parse_prune_output("");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn parse_prune_backslash_path() {
+        let input = "Removing worktrees\\feature-auth: gitdir file points to non-existing location";
+        let result = parse_prune_output(input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "feature-auth");
     }
 }

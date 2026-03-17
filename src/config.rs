@@ -62,7 +62,11 @@ pub(crate) fn expand_tilde(path: &Path) -> Result<PathBuf> {
     let s = path.to_string_lossy();
     if let Some(stripped) = s.strip_prefix('~') {
         let home = dirs::home_dir().context("Could not determine home directory")?;
-        Ok(home.join(stripped.strip_prefix('/').unwrap_or(stripped)))
+        let rest = stripped
+            .strip_prefix('/')
+            .or_else(|| stripped.strip_prefix('\\'))
+            .unwrap_or(stripped);
+        Ok(home.join(rest))
     } else {
         Ok(path.to_path_buf())
     }

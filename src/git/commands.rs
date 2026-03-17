@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use super::runner::{run_git, run_git_inherited, run_git_output};
-use super::types::{WorktreeInfo, parse_worktree_list, sanitize_branch};
+use super::types::{
+    PrunedWorktree, WorktreeInfo, parse_prune_output, parse_worktree_list, sanitize_branch,
+};
 
 pub fn show_file_from_head(file: &str, cwd: &Path) -> Result<String> {
     run_git(&["show", &format!("HEAD:{file}")], Some(cwd))
@@ -85,9 +87,10 @@ pub fn worktree_remove(path: &Path, force: bool) -> Result<()> {
     }
 }
 
-pub fn worktree_prune() -> Result<String> {
+pub fn worktree_prune() -> Result<Vec<PrunedWorktree>> {
     let output = run_git_output(&["worktree", "prune", "--verbose"], None)?;
-    Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Ok(parse_prune_output(&stderr))
 }
 
 pub fn clone_bare(url: &str, dest: &Path) -> Result<()> {

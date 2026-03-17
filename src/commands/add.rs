@@ -5,7 +5,13 @@ use anyhow::{Context, Result, bail};
 use crate::config::Config;
 use crate::{display, git, hooks};
 
-pub fn run(config: &Config, branch: &str, repo: Option<&str>, no_hooks: bool) -> Result<()> {
+pub fn run(
+    config: &Config,
+    branch: &str,
+    base: Option<&str>,
+    repo: Option<&str>,
+    no_hooks: bool,
+) -> Result<()> {
     let (repo_name, repo_cwd) = resolve_repo(config, repo)?;
     let wt_path = resolve_wt_path(config, &repo_name, branch, repo_cwd.as_deref())?;
 
@@ -24,12 +30,18 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>, no_hooks: bool) ->
     let cwd = repo_cwd.as_deref();
 
     if git::local_branch_exists(branch, cwd)? {
+        if base.is_some() {
+            display::print_note("--base ignored — branch already exists locally");
+        }
         git::worktree_add_existing(&wt_path, branch, cwd)?;
         display::print_ok(&format!(
             "Linked '{branch}' at {}",
             display::shorten_path(&wt_path)
         ));
     } else if git::remote_branch_exists(branch, cwd)? {
+        if base.is_some() {
+            display::print_note("--base ignored — tracking existing remote branch");
+        }
         git::create_tracking_branch(branch, cwd)?;
         git::worktree_add_existing(&wt_path, branch, cwd)?;
         display::print_ok(&format!(
@@ -40,7 +52,7 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>, no_hooks: bool) ->
         display::print_note(&format!(
             "No existing branch found — creating new branch '{branch}'"
         ));
-        git::worktree_add_new_branch(&wt_path, branch, cwd)?;
+        git::worktree_add_new_branch(&wt_path, branch, base, cwd)?;
         display::print_ok(&format!(
             "Created '{branch}' at {}",
             display::shorten_path(&wt_path)

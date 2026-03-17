@@ -59,10 +59,10 @@ impl TestEnv {
     }
 }
 
-fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {
+fn git_cmd(dir: &Path, args: &[&str], home: &std::path::Path) -> std::process::Output {
     let mut cmd = Command::new("git");
     cmd.args(args)
-        .current_dir(dir.path())
+        .current_dir(dir)
         .env("HOME", home)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -76,6 +76,16 @@ fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {
         args.join(" "),
         String::from_utf8_lossy(&output.stderr)
     );
+    output
+}
+
+fn git(dir: &TempDir, args: &[&str], home: &std::path::Path) {
+    git_cmd(dir.path(), args, home);
+}
+
+fn git_stdout(dir: &Path, args: &[&str], home: &std::path::Path) -> String {
+    let output = git_cmd(dir, args, home);
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
 // ── add ──────────────────────────────────────────────────────────────
@@ -175,6 +185,67 @@ fn add_new_branch_prints_note() {
     assert!(
         stderr.contains("creating new branch"),
         "should warn about new branch creation, got: {stderr}"
+    );
+}
+
+#[test]
+fn add_with_base_creates_branch_from_ref() {
+    let env = TestEnv::new();
+
+    // Create a second commit so HEAD and HEAD~1 differ
+    git(
+        &env.repo,
+        &["commit", "--allow-empty", "-m", "second"],
+        env.home.path(),
+    );
+
+    let first_commit = git_stdout(env.repo.path(), &["rev-parse", "HEAD~1"], env.home.path());
+
+    let output = env
+        .arbor(&["add", "feat", "--base", "HEAD~1"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "add --base should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let wt_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let wt_head = git_stdout(Path::new(&wt_path), &["rev-parse", "HEAD"], env.home.path());
+    assert_eq!(
+        wt_head, first_commit,
+        "worktree HEAD should match the base ref"
+    );
+}
+
+#[test]
+fn add_with_base_ignores_for_existing_branch() {
+    let env = TestEnv::new();
+
+    // Create the branch first
+    let first = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(first.status.success());
+
+    // Remove the worktree so it can be re-added
+    let rm = env.arbor(&["remove", "feat"]).output().unwrap();
+    assert!(rm.status.success());
+
+    // Re-add with --base (should ignore since branch exists locally)
+    let output = env
+        .arbor(&["add", "feat", "--base", "HEAD~1"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "add --base with existing branch should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--base ignored"),
+        "should warn that --base was ignored, got: {stderr}"
     );
 }
 

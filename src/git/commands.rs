@@ -51,11 +51,18 @@ pub fn worktree_add_existing(path: &Path, branch: &str, cwd: Option<&Path>) -> R
     Ok(())
 }
 
-pub fn worktree_add_new_branch(path: &Path, branch: &str, cwd: Option<&Path>) -> Result<()> {
-    run_git(
-        &["worktree", "add", "-b", branch, &path.to_string_lossy()],
-        cwd,
-    )?;
+pub fn worktree_add_new_branch(
+    path: &Path,
+    branch: &str,
+    base: Option<&str>,
+    cwd: Option<&Path>,
+) -> Result<()> {
+    let path_str = path.to_string_lossy();
+    let mut args = vec!["worktree", "add", "-b", branch, &path_str];
+    if let Some(b) = base {
+        args.push(b);
+    }
+    run_git(&args, cwd)?;
     Ok(())
 }
 

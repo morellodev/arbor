@@ -37,6 +37,9 @@ pub fn run(config: &Config, branch: &str, repo: Option<&str>, no_hooks: bool) ->
             display::shorten_path(&wt_path)
         ));
     } else {
+        display::print_note(&format!(
+            "No existing branch found — creating new branch '{branch}'"
+        ));
         git::worktree_add_new_branch(&wt_path, branch, cwd)?;
         display::print_ok(&format!(
             "Created '{branch}' at {}",

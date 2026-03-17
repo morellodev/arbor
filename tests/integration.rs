@@ -165,6 +165,19 @@ fn add_from_worktree_uses_main_repo_name() {
     );
 }
 
+#[test]
+fn add_new_branch_prints_note() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("creating new branch"),
+        "should warn about new branch creation, got: {stderr}"
+    );
+}
+
 // ── dir ──────────────────────────────────────────────────────────────
 
 #[test]

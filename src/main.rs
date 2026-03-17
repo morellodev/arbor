@@ -68,9 +68,8 @@ fn run(cli: Cli) -> Result<()> {
         Command::Add {
             ref branch,
             ref base,
-            ref repo,
             no_hooks,
-        } => commands::add(&config, branch, base.as_deref(), repo.as_deref(), no_hooks),
+        } => commands::add(&config, branch, base.as_deref(), no_hooks),
         Command::Switch { ref branch } => commands::switch(branch.as_deref()),
         Command::List { all, json, short } => commands::list(&config, all, json, short),
         Command::Remove {

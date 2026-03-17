@@ -24,17 +24,13 @@ pub enum Command {
     #[command(after_help = "\
 Examples:
   arbor add feature/auth
-  arbor add feature/auth --base main
-  arbor add main --repo myapp")]
+  arbor add feature/auth --base main")]
     Add {
         /// Branch name to create a worktree for
         branch: String,
         /// Start the new branch from this ref (branch, tag, or commit)
         #[arg(long, short)]
         base: Option<String>,
-        /// Repository name (resolve against ~/.arbor/repos/) to add from any directory
-        #[arg(long)]
-        repo: Option<String>,
         /// Skip post-create hooks
         #[arg(long)]
         no_hooks: bool,

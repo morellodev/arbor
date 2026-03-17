@@ -6,10 +6,11 @@ use comfy_table::{ContentArrangement, Table, presets::NOTHING};
 use crate::git::WorktreeInfo;
 
 pub fn cwd_is_inside(cwd: &Path, worktree_path: &Path) -> bool {
-    let canonical = worktree_path
+    let cwd = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
+    let worktree_path = worktree_path
         .canonicalize()
         .unwrap_or_else(|_| worktree_path.to_path_buf());
-    cwd.starts_with(&canonical)
+    cwd.starts_with(&worktree_path)
 }
 
 fn find_current_index(entries: &[WorktreeInfo]) -> Option<usize> {

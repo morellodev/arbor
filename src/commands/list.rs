@@ -5,7 +5,7 @@ use anyhow::Result;
 
 use crate::{config::Config, display, git};
 
-pub fn run(config: &Config, all: bool, json: bool) -> Result<()> {
+pub fn run(config: &Config, all: bool, json: bool, short: bool) -> Result<()> {
     if json {
         if all {
             list_all_repos_json(config)
@@ -13,9 +13,9 @@ pub fn run(config: &Config, all: bool, json: bool) -> Result<()> {
             list_repo_json(None)
         }
     } else if all {
-        list_all_repos(config)
+        list_all_repos(config, short)
     } else {
-        list_repo(None)
+        list_repo(None, short)
     }
 }
 
@@ -61,7 +61,7 @@ pub(crate) fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
     Ok(repos)
 }
 
-fn list_repo(cwd: Option<&Path>) -> Result<()> {
+fn list_repo(cwd: Option<&Path>, short: bool) -> Result<()> {
     let worktrees = git::worktree_infos(cwd)?;
     if worktrees.is_empty() {
         display::print_note("No worktrees found.");
@@ -72,11 +72,11 @@ fn list_repo(cwd: Option<&Path>) -> Result<()> {
 
     let summary = display::summarize(&worktrees);
     println!("{}", display::format_summary(&label, &summary));
-    display::print_table(&worktrees, true);
+    display::print_table(&worktrees, !short);
     Ok(())
 }
 
-fn list_all_repos(config: &Config) -> Result<()> {
+fn list_all_repos(config: &Config, short: bool) -> Result<()> {
     let repos = scan_repos(config)?;
 
     if repos.is_empty() {
@@ -93,7 +93,7 @@ fn list_all_repos(config: &Config) -> Result<()> {
         display::print_section(&repo.display_name);
         let summary = display::summarize(&repo.worktrees);
         println!("{}", display::format_summary("Summary", &summary));
-        display::print_table(&repo.worktrees, true);
+        display::print_table(&repo.worktrees, !short);
         println!();
         summaries.push(summary);
     }

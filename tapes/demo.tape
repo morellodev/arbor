@@ -53,7 +53,7 @@ Enter
 Sleep 2s
 
 # Check which worktrees are dirty or ahead/behind
-Type "arbor status"
+Type "arbor ls --short"
 Sleep 300ms
 Enter
 Sleep 2s

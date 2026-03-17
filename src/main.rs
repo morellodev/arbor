@@ -71,7 +71,7 @@ fn run(cli: Cli) -> Result<()> {
             no_hooks,
         } => commands::add(&config, branch, repo.as_deref(), no_hooks),
         Command::Switch { ref branch } => commands::switch(branch.as_deref()),
-        Command::List { all, json } => commands::list(&config, all, json),
+        Command::List { all, json, short } => commands::list(&config, all, json, short),
         Command::Remove {
             ref branch,
             force,
@@ -85,7 +85,6 @@ fn run(cli: Cli) -> Result<()> {
         } => commands::clone(&config, url, no_worktree, no_hooks),
         Command::Clean { delete_branch } => commands::clean(delete_branch),
         Command::Prune => commands::prune(),
-        Command::Status { short, all } => commands::status(&config, short, all),
         Command::Fetch { all } => commands::fetch(&config, all),
         Command::Init { ref shell, inject } => commands::init(shell.as_deref(), inject),
     }

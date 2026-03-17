@@ -27,7 +27,7 @@ cargo clippy -- -D warnings    # Lint (warnings treated as errors)
 ## Architecture
 
 - **`src/main.rs`** — Entry point. `main()` resets SIGPIPE to default (so piping stdout doesn't panic), parses CLI args, configures color, calls `run()`, and formats errors with `display::print_error`. `run()` dispatches to command handlers.
-- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, Switch, List, Remove, Dir, Clone, Clean, Prune, Status, Fetch, Init). Switch branch is optional (interactive fuzzy selection when omitted). Init has an `--inject` flag for non-interactive shell config injection.
+- **`src/cli.rs`** — CLI definition using clap derive. Defines `Cli` struct and `Command` enum (Add, Switch, List, Remove, Dir, Clone, Clean, Prune, Fetch, Init). Switch branch is optional (interactive fuzzy selection when omitted). Init has an `--inject` flag for non-interactive shell config injection.
 - **`src/config.rs`** — Loads/creates `~/.arbor/config.toml` with tilde expansion. Uses serde + toml.
 - **`src/git/`** — All git operations via `std::process::Command`, split into submodules:
   - `runner.rs` — `run_git`, `run_git_output`, `run_git_inherited` (`pub(super)`)
@@ -36,7 +36,7 @@ cargo clippy -- -D warnings    # Lint (warnings treated as errors)
   - `mod.rs` — Re-exports all pub items (callers use `crate::git::*` unchanged)
 - **`src/hooks.rs`** — Post-create hook support and per-project worktree directory overrides. `ProjectConfig` has an optional `worktree_dir` field. Key public functions: `resolve_worktree_dir` (resolves absolute/tilde/relative paths against a repo root), `load_worktree_dir_from_path` (reads `.arbor.toml` from filesystem), `load_worktree_dir_from_git` (reads `.arbor.toml` via `git show HEAD:`). Executes `post_create` commands via shell with stdout redirected to stderr.
 - **`src/display.rs`** — Colored terminal output (using `colored` crate — only file that imports it). Table formatting for worktree listings, summary stats, path shortening (`shorten_path`), terminal-aware path output (`print_path_hint`), and user-facing messages (`print_ok` ✓, `print_error` ✗, `print_note` ▸, `print_section`, `print_heading`, `print_hint`, `print_cd_hint`).
-- **`src/commands/`** — One file per subcommand (add, clean, clone, dir, fetch, init, list, prune, remove, status, switch). Each exports a `run` function re-exported from `commands/mod.rs`. `remove` finds worktrees via `git::resolve_worktree_branch` (no dependency on `Config`).
+- **`src/commands/`** — One file per subcommand (add, clean, clone, dir, fetch, init, list, prune, remove, switch). Each exports a `run` function re-exported from `commands/mod.rs`. `remove` finds worktrees via `git::resolve_worktree_branch` (no dependency on `Config`).
 
 ## Key conventions
 

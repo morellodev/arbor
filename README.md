@@ -58,9 +58,6 @@ arbor switch
 # See all worktrees
 arbor ls
 
-# Check which are dirty or ahead/behind
-arbor status
-
 # Done? Remove the worktree and its local branch
 arbor rm -d feat/login
 ```
@@ -99,11 +96,10 @@ arbor init --inject
 | --- | --- | --- |
 | `arbor add <branch> [--repo <name>] [--no-hooks]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. `--repo` lets you add from any directory. `--no-hooks` skips post-create hooks. |
 | `arbor switch [branch]` | `cd` | Switch to an existing worktree. With no argument, shows an interactive fuzzy selector. |
-| `arbor list [--all] [--json]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. |
+| `arbor list [--all] [--json] [--short]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. `--short` hides the path column. |
 | `arbor remove <branch> [-f] [-d]` | `rm` | Remove a worktree. `-f` forces removal of dirty worktrees. `-d` also deletes the local branch. |
 | `arbor dir <branch>` | | Print the worktree path for a branch. Accepts both `feature/auth` and `feature-auth`. |
 | `arbor clone <url> [--no-worktree] [--no-hooks]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. `--no-hooks` skips post-create hooks. |
-| `arbor status [--short] [--all]` | | Show dirty/clean state and ahead/behind counts for all worktrees. `--all` shows across all repos. |
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
 | `arbor clean [-d]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. |
 | `arbor prune` | | Remove stale worktree references. |

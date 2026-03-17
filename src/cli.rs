@@ -56,7 +56,8 @@ Examples:
         after_help = "\
 Examples:
   arbor ls
-  arbor ls --all --json"
+  arbor ls --all --json
+  arbor ls --short"
     )]
     List {
         /// Show worktrees for all repositories
@@ -65,6 +66,9 @@ Examples:
         /// Output as JSON for scripting
         #[arg(long)]
         json: bool,
+        /// Hide the path column
+        #[arg(long, short)]
+        short: bool,
     },
 
     /// Remove the worktree for a branch
@@ -118,16 +122,6 @@ Examples:
 
     /// Remove references to stale worktrees
     Prune,
-
-    /// Show the status of all worktrees (dirty/clean, ahead/behind)
-    Status {
-        /// Show compact one-line-per-worktree output (no paths)
-        #[arg(long)]
-        short: bool,
-        /// Show status across all repositories
-        #[arg(long)]
-        all: bool,
-    },
 
     /// Fetch from origin in the current bare repo
     Fetch {

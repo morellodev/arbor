@@ -7,7 +7,6 @@ mod init;
 pub(crate) mod list;
 mod prune;
 mod remove;
-mod status;
 mod switch;
 
 pub use self::dir::run as dir;
@@ -19,5 +18,4 @@ pub use init::run as init;
 pub use list::run as list;
 pub use prune::run as prune;
 pub use remove::run as remove;
-pub use status::run as status;
 pub use switch::run as switch;

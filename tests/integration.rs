@@ -481,26 +481,6 @@ fn list_alias_ls_works() {
 }
 
 #[test]
-fn list_json_outputs_valid_json() {
-    let env = TestEnv::new();
-    env.arbor(&["add", "feat"]).output().unwrap();
-
-    let output = env.arbor(&["list", "--json"]).output().unwrap();
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("should be valid JSON");
-    assert!(parsed.is_array(), "JSON output should be an array");
-
-    let arr = parsed.as_array().unwrap();
-    assert!(!arr.is_empty(), "should contain at least one worktree");
-    assert!(
-        arr[0].get("branch").is_some(),
-        "worktree entry should have a branch field"
-    );
-}
-
-#[test]
 fn list_shows_worktrees() {
     let env = TestEnv::new();
     env.arbor(&["add", "feat"]).output().unwrap();
@@ -517,25 +497,67 @@ fn list_shows_worktrees() {
         stdout.contains("feat"),
         "list output should include the branch name, got: {stdout}"
     );
+    assert!(
+        stdout.contains("clean"),
+        "list output should show clean state, got: {stdout}"
+    );
 }
 
 #[test]
-fn list_shows_current_indicator_from_worktree() {
+fn list_detects_dirty_worktree() {
     let env = TestEnv::new();
 
     let add_out = env.arbor(&["add", "feat"]).output().unwrap();
     let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
 
-    let output = env
-        .arbor_in(Path::new(&wt_path), &["list"])
-        .output()
-        .unwrap();
+    fs::write(Path::new(&wt_path).join("dirty.txt"), "dirty").unwrap();
+
+    let output = env.arbor(&["list"]).output().unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains('*'),
-        "list from inside worktree should show * indicator, got: {stdout}"
+        stdout.contains("dirty"),
+        "should detect dirty worktree, got: {stdout}"
+    );
+}
+
+#[test]
+fn list_short_omits_paths() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["list", "--short"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("Path"),
+        "short output should omit paths, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("clean"),
+        "should still show status, got: {stdout}"
+    );
+}
+
+#[test]
+fn list_json_outputs_valid_json() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["list", "--json"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("should be valid JSON");
+    assert!(parsed.is_array(), "JSON output should be an array");
+
+    let arr = parsed.as_array().unwrap();
+    assert!(!arr.is_empty(), "should contain at least one worktree");
+    assert!(
+        arr[0].get("branch").is_some(),
+        "worktree entry should have a branch field"
     );
 }
 
@@ -562,65 +584,30 @@ fn list_json_does_not_contain_indicator() {
     assert!(parsed.is_array(), "JSON output should be an array");
 }
 
-// ── status ───────────────────────────────────────────────────────────
-
 #[test]
-fn status_shows_clean_worktree() {
-    let env = TestEnv::new();
-    let output = env.arbor(&["status"]).output().unwrap();
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("clean"),
-        "fresh repo should be clean, got: {stdout}"
-    );
-}
-
-#[test]
-fn status_short_omits_paths() {
-    let env = TestEnv::new();
-    env.arbor(&["add", "feat"]).output().unwrap();
-
-    let output = env.arbor(&["status", "--short"]).output().unwrap();
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // --short should not include the "Path" column header
-    assert!(
-        !stdout.contains("Path"),
-        "short output should omit paths, got: {stdout}"
-    );
-    assert!(
-        stdout.contains("clean"),
-        "should still show status, got: {stdout}"
-    );
-}
-
-#[test]
-fn status_detects_dirty_worktree() {
+fn list_shows_current_indicator_from_worktree() {
     let env = TestEnv::new();
 
     let add_out = env.arbor(&["add", "feat"]).output().unwrap();
     let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
 
-    // Make the worktree dirty
-    fs::write(Path::new(&wt_path).join("dirty.txt"), "dirty").unwrap();
-
-    let output = env.arbor(&["status"]).output().unwrap();
+    let output = env
+        .arbor_in(Path::new(&wt_path), &["list"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("dirty"),
-        "should detect dirty worktree, got: {stdout}"
+        stdout.contains('*'),
+        "list from inside worktree should show * indicator, got: {stdout}"
     );
 }
 
 #[test]
-fn status_all_succeeds_with_no_repos() {
+fn list_all_succeeds_with_no_repos() {
     let env = TestEnv::new();
-    let output = env.arbor(&["status", "--all"]).output().unwrap();
+    let output = env.arbor(&["list", "--all"]).output().unwrap();
     assert!(output.status.success());
 }
 

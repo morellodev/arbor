@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0](https://github.com/morellodev/arbor/compare/v0.2.6...v0.3.0) - 2026-03-17
+
+### Added
+
+- use structured output for `prune`
+- add interactive fuzzy selection to `dir`
+- [**breaking**] remove `--repo` flag from `add`
+- print branch tip commit hash on `remove -d`
+- add `--base` flag to `add` for specifying branch start-point
+- warn when `add` creates a brand-new branch
+- [**breaking**] absorb `status` into `list` with `--short` flag
+- show `*` indicator next to current worktree in listings
+
+### Fixed
+
+- canonicalize both paths in `cwd_is_inside` for Windows compatibility
+
 ## [0.2.6](https://github.com/morellodev/arbor/compare/v0.2.5...v0.2.6) - 2026-03-17
 
 ### Added

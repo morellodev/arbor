@@ -2,6 +2,12 @@ use anyhow::{Result, bail};
 
 use crate::{display, git};
 
+fn parse_was_hash(output: &str) -> Option<&str> {
+    let start = output.find("(was ")? + 5;
+    let end = output[start..].find(')')? + start;
+    Some(&output[start..end])
+}
+
 pub fn run(branch: &str, force: bool, delete_branch: bool) -> Result<()> {
     let (wt_path, actual_branch) = match git::resolve_worktree_branch(branch, None) {
         Ok(result) => result,
@@ -25,7 +31,11 @@ pub fn run(branch: &str, force: bool, delete_branch: bool) -> Result<()> {
 
     if delete_branch {
         match git::delete_branch(&actual_branch, force, None) {
-            Ok(()) => display::print_ok(&format!("Deleted branch '{actual_branch}'")),
+            Ok(output) => {
+                let hash = parse_was_hash(&output);
+                let suffix = hash.map_or(String::new(), |h| format!(" (was {h})"));
+                display::print_ok(&format!("Deleted branch '{actual_branch}'{suffix}"));
+            }
             Err(e) => {
                 display::print_error(&format!("Could not delete branch '{actual_branch}': {e}"))
             }

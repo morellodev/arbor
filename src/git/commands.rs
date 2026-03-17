@@ -139,10 +139,9 @@ pub fn head_branch(repo_path: &Path) -> Result<String> {
         .to_string())
 }
 
-pub fn delete_branch(branch: &str, force: bool, cwd: Option<&Path>) -> Result<()> {
+pub fn delete_branch(branch: &str, force: bool, cwd: Option<&Path>) -> Result<String> {
     let flag = if force { "-D" } else { "-d" };
-    run_git(&["branch", flag, branch], cwd)?;
-    Ok(())
+    run_git(&["branch", flag, branch], cwd)
 }
 
 pub fn is_worktree_dirty(path: &Path) -> bool {

@@ -375,6 +375,26 @@ fn remove_force_delete_unmerged_branch() {
         stderr.contains("Deleted branch"),
         "should force-delete the branch, got: {stderr}"
     );
+    assert!(
+        stderr.contains("(was "),
+        "should print commit hash for force-deleted branch, got: {stderr}"
+    );
+}
+
+#[test]
+fn remove_delete_branch_prints_commit_hash() {
+    let env = TestEnv::new();
+
+    env.arbor(&["add", "feat"]).assert().success();
+
+    let rm_out = env.arbor(&["remove", "feat", "-d"]).output().unwrap();
+    assert!(rm_out.status.success());
+
+    let stderr = String::from_utf8_lossy(&rm_out.stderr);
+    assert!(
+        stderr.contains("(was "),
+        "should print commit hash when deleting branch, got: {stderr}"
+    );
 }
 
 #[test]

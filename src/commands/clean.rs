@@ -31,7 +31,7 @@ fn remove_worktrees(
 
                 if delete_branch && let Some(branch) = &wt.branch {
                     match git::delete_branch(branch, false, None) {
-                        Ok(()) => {
+                        Ok(_) => {
                             display::print_ok(&format!("Deleted branch '{branch}'"));
                             branches_deleted += 1;
                         }

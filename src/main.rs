@@ -15,6 +15,8 @@ use cli::{Cli, ColorMode, Command};
 use config::Config;
 
 fn main() {
+    reset_sigpipe();
+
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(e) => {
@@ -45,6 +47,19 @@ fn configure_color(mode: &ColorMode) {
         }
     }
 }
+
+#[cfg(unix)]
+fn reset_sigpipe() {
+    unsafe extern "C" {
+        fn signal(sig: i32, handler: usize) -> usize;
+    }
+    unsafe {
+        signal(13, 0);
+    }
+}
+
+#[cfg(not(unix))]
+fn reset_sigpipe() {}
 
 fn run(cli: Cli) -> Result<()> {
     let config = Config::load()?;

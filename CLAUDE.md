@@ -14,15 +14,15 @@ cargo build --release          # Build release
 cargo install --path .         # Install to ~/.cargo/bin/
 cargo test                     # Run all tests (unit + integration)
 cargo test --lib               # Unit tests only
-cargo test --test integration  # Integration tests only
+cargo test --test add          # Run a single integration test file
 cargo test <test_name>         # Run a single test by name
-cargo fmt                      # Format code
-cargo clippy -- -D warnings    # Lint (warnings treated as errors)
+cargo fmt                           # Format code
+cargo clippy --tests -- -D warnings # Lint (warnings treated as errors)
 ```
 
 ## Pre-commit checks
 
-**Always run `cargo fmt` and `cargo clippy -- -D warnings` after making changes, before committing.** Fix any issues they report before creating a commit.
+**Always run `cargo fmt` and `cargo clippy --tests -- -D warnings` after making changes, before committing.** Fix any issues they report before creating a commit.
 
 ## Architecture
 
@@ -62,4 +62,4 @@ Command and flag completions in `src/commands/init.rs` are auto-generated from `
 
 ## Integration tests
 
-Tests in `tests/integration.rs` use `assert_cmd` and `tempfile`. The `TestEnv` helper creates an isolated HOME with a custom `config.toml` and a temporary git repo, ensuring tests don't touch the real filesystem.
+Tests live in `tests/`, split by command: `add.rs`, `dir.rs`, `remove.rs`, `switch.rs`, `list.rs`, `init.rs`, `clean.rs`, `prune.rs`, `hooks.rs`, `help.rs`, and `local_config.rs`. Shared helpers (`TestEnv`, `stdout_path`, `stdout_canon`, `add_worktree`, `commit_arbor_toml`, `git`, `git_cmd`, `git_stdout`) live in `tests/common/mod.rs`. Tests use `assert_cmd` and `tempfile`. The `TestEnv` helper creates an isolated HOME with a custom `config.toml` and a temporary git repo, ensuring tests don't touch the real filesystem.

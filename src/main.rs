@@ -76,7 +76,7 @@ fn run(cli: Cli) -> Result<()> {
             ref branch,
             force,
             delete_branch,
-        } => commands::remove(branch, force, delete_branch),
+        } => commands::remove(branch.as_deref(), force, delete_branch),
         Command::Dir { ref branch } => commands::dir(branch.as_deref()),
         Command::Clone {
             ref url,

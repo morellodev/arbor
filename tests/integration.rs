@@ -352,16 +352,11 @@ fn remove_force_delete_unmerged_branch() {
     let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
 
     // Make a commit in the worktree so the branch diverges
-    let output = Command::new("git")
-        .args(["commit", "--allow-empty", "-m", "wip"])
-        .current_dir(&wt_path)
-        .env("HOME", env.home.path())
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", env.home.path().join(".gitconfig"))
-        .output()
-        .unwrap();
-    assert!(output.status.success());
+    git_cmd(
+        Path::new(&wt_path),
+        &["commit", "--allow-empty", "-m", "wip"],
+        env.home.path(),
+    );
 
     // Force-remove the worktree and delete the unmerged branch
     let rm_out = env
@@ -1363,4 +1358,154 @@ fn dir_works_with_local_worktree_dir() {
 
     let dir_path = fs::canonicalize(String::from_utf8_lossy(&dir_out.stdout).trim()).unwrap();
     assert_eq!(add_path, dir_path);
+}
+
+// ── remove interactive / dot ────────────────────────────────────────
+
+#[test]
+fn remove_no_arg_requires_terminal() {
+    let env = TestEnv::new();
+    env.arbor(&["add", "feat"]).output().unwrap();
+
+    let output = env.arbor(&["rm"]).output().unwrap();
+    assert!(
+        !output.status.success(),
+        "rm with no arg and piped stdin should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Interactive terminal required"),
+        "should mention terminal requirement, got: {stderr}"
+    );
+}
+
+#[test]
+fn remove_dot_removes_current_worktree() {
+    let env = TestEnv::new();
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+    assert!(Path::new(&wt_path).exists());
+
+    let rm_out = env
+        .arbor_in(Path::new(&wt_path), &["rm", "."])
+        .output()
+        .unwrap();
+    assert!(
+        rm_out.status.success(),
+        "rm . should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+    assert!(
+        !Path::new(&wt_path).exists(),
+        "worktree directory should be gone after rm ."
+    );
+
+    let printed = fs::canonicalize(String::from_utf8_lossy(&rm_out.stdout).trim()).unwrap();
+    let expected = fs::canonicalize(env.repo.path()).unwrap();
+    assert_eq!(printed, expected, "should print the repo toplevel path");
+}
+
+#[test]
+fn remove_dot_outside_worktree_fails() {
+    let env = TestEnv::new();
+    let outside = TempDir::new().unwrap();
+    let output = env.arbor_in(outside.path(), &["rm", "."]).output().unwrap();
+    assert!(
+        !output.status.success(),
+        "rm . outside a git repo should fail"
+    );
+}
+
+#[test]
+fn remove_dot_with_delete_branch() {
+    let env = TestEnv::new();
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    let rm_out = env
+        .arbor_in(Path::new(&wt_path), &["rm", ".", "-d"])
+        .output()
+        .unwrap();
+    assert!(
+        rm_out.status.success(),
+        "rm . -d should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&rm_out.stderr);
+    assert!(
+        stderr.contains("Deleted branch"),
+        "should mention deleted branch, got: {stderr}"
+    );
+}
+
+#[test]
+fn remove_dot_from_subdirectory() {
+    let env = TestEnv::new();
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    let subdir = Path::new(&wt_path).join("nested/deep");
+    fs::create_dir_all(&subdir).unwrap();
+
+    let rm_out = env.arbor_in(&subdir, &["rm", "."]).output().unwrap();
+    assert!(
+        rm_out.status.success(),
+        "rm . from subdirectory should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+    assert!(
+        !Path::new(&wt_path).exists(),
+        "worktree directory should be gone"
+    );
+}
+
+#[test]
+fn remove_dot_dirty_worktree_fails() {
+    let env = TestEnv::new();
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    fs::write(Path::new(&wt_path).join("dirty.txt"), "dirty").unwrap();
+
+    let rm_out = env
+        .arbor_in(Path::new(&wt_path), &["rm", "."])
+        .output()
+        .unwrap();
+    assert!(
+        !rm_out.status.success(),
+        "rm . on dirty worktree should fail"
+    );
+    let stderr = String::from_utf8_lossy(&rm_out.stderr);
+    assert!(
+        stderr.contains("uncommitted changes"),
+        "should mention uncommitted changes, got: {stderr}"
+    );
+}
+
+#[test]
+fn remove_dot_force_dirty_worktree() {
+    let env = TestEnv::new();
+    let add_out = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(add_out.status.success());
+    let wt_path = String::from_utf8_lossy(&add_out.stdout).trim().to_string();
+
+    fs::write(Path::new(&wt_path).join("dirty.txt"), "dirty").unwrap();
+
+    let rm_out = env
+        .arbor_in(Path::new(&wt_path), &["rm", ".", "-f"])
+        .output()
+        .unwrap();
+    assert!(
+        rm_out.status.success(),
+        "rm . -f on dirty worktree should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+    assert!(
+        !Path::new(&wt_path).exists(),
+        "worktree directory should be gone after forced removal"
+    );
 }

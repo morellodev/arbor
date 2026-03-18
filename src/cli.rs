@@ -71,18 +71,19 @@ Examples:
         short: bool,
     },
 
-    /// Remove the worktree for a branch
+    /// Remove a worktree
     #[command(
         visible_alias = "rm",
         after_help = "\
 Examples:
   arbor rm feature/auth
+  arbor rm .                 # remove current worktree
   arbor rm -d feature/auth
-  arbor rm -f -d stale-branch"
+  arbor rm                   # interactive fuzzy selection"
     )]
     Remove {
-        /// Branch name whose worktree to remove
-        branch: String,
+        /// Branch name to remove (interactive selection if omitted, '.' for current worktree)
+        branch: Option<String>,
         /// Force removal even if the worktree is dirty
         #[arg(long, short)]
         force: bool,

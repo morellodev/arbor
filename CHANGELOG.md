@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.1](https://github.com/morellodev/arbor/compare/v0.3.0...v0.3.1) - 2026-03-18
+
+### Added
+
+- add interactive selection and '.' support to remove command
+
+### Fixed
+
+- chdir before removing worktree to fix Windows permission error
+
+### Other
+
+- split integration tests into per-command files
+- consolidate shared patterns and fix inconsistencies
+
 ## [0.3.0](https://github.com/morellodev/arbor/compare/v0.2.6...v0.3.0) - 2026-03-17
 
 ### Added

@@ -38,8 +38,12 @@ pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Res
             None => config.worktree_path(&name, &default_branch),
         };
 
-        fs::create_dir_all(wt_path.parent().unwrap())
-            .with_context(|| format!("Failed to create directory: {}", wt_path.display()))?;
+        fs::create_dir_all(
+            wt_path
+                .parent()
+                .context("Worktree path has no parent directory")?,
+        )
+        .with_context(|| format!("Failed to create directory: {}", wt_path.display()))?;
 
         git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
         display::print_ok(&format!(
@@ -52,7 +56,6 @@ pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Res
                 worktree_path: wt_path.clone(),
                 branch: default_branch.clone(),
                 repo_name: name.clone(),
-                event: "post_create".to_string(),
             });
         }
         display::print_path_hint(&wt_path);

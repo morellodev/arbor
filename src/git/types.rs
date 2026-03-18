@@ -10,6 +10,12 @@ pub fn strip_git_suffix(name: &str) -> &str {
     name.strip_suffix(".git").unwrap_or(name)
 }
 
+#[derive(Clone, Copy, Serialize)]
+pub struct Tracking {
+    pub ahead: usize,
+    pub behind: usize,
+}
+
 pub struct ParsedWorktree {
     pub path: PathBuf,
     pub branch: Option<String>,
@@ -63,28 +69,11 @@ pub struct WorktreeInfo {
     pub path: PathBuf,
     pub branch: Option<String>,
     pub dirty: bool,
-    #[serde(serialize_with = "serialize_tracking")]
-    pub tracking: Option<(usize, usize)>,
+    pub tracking: Option<Tracking>,
 }
 
 fn serialize_path<S: serde::Serializer>(path: &Path, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(&path.display().to_string())
-}
-
-fn serialize_tracking<S: serde::Serializer>(
-    tracking: &Option<(usize, usize)>,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    use serde::ser::SerializeMap;
-    match tracking {
-        Some((ahead, behind)) => {
-            let mut map = s.serialize_map(Some(2))?;
-            map.serialize_entry("ahead", ahead)?;
-            map.serialize_entry("behind", behind)?;
-            map.end()
-        }
-        None => s.serialize_none(),
-    }
 }
 
 pub struct PrunedWorktree {

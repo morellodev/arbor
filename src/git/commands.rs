@@ -4,7 +4,8 @@ use anyhow::{Context, Result};
 
 use super::runner::{run_git, run_git_inherited, run_git_output};
 use super::types::{
-    PrunedWorktree, WorktreeInfo, parse_prune_output, parse_worktree_list, sanitize_branch,
+    PrunedWorktree, Tracking, WorktreeInfo, parse_prune_output, parse_worktree_list,
+    sanitize_branch,
 };
 
 pub fn show_file_from_head(file: &str, cwd: &Path) -> Result<String> {
@@ -117,18 +118,19 @@ pub fn status_porcelain(cwd: &Path) -> Result<String> {
     run_git(&["status", "--porcelain"], Some(cwd))
 }
 
-pub fn ahead_behind(cwd: &Path) -> Option<(usize, usize)> {
+pub fn ahead_behind(cwd: &Path) -> Option<Tracking> {
     let output = run_git(
         &["rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
         Some(cwd),
     )
     .ok()?;
 
+    // --left-right outputs: <upstream_count>\t<local_count>, i.e. behind\tahead
     let parts: Vec<&str> = output.split_whitespace().collect();
     if parts.len() == 2 {
         let behind = parts[0].parse().ok()?;
         let ahead = parts[1].parse().ok()?;
-        Some((ahead, behind))
+        Some(Tracking { ahead, behind })
     } else {
         None
     }

@@ -5,13 +5,12 @@ mod display;
 mod git;
 mod hooks;
 
-use std::io::IsTerminal;
 use std::process;
 
 use anyhow::Result;
 use clap::Parser;
 
-use cli::{Cli, ColorMode, Command};
+use cli::{Cli, Command};
 use config::Config;
 
 fn main() {
@@ -24,27 +23,11 @@ fn main() {
             process::exit(e.exit_code());
         }
     };
-    configure_color(&cli.color);
+    display::configure_color(&cli.color);
 
     if let Err(e) = run(cli) {
         display::print_error(&format!("{e:#}"));
         process::exit(1);
-    }
-}
-
-fn configure_color(mode: &ColorMode) {
-    let no_color = std::env::var("NO_COLOR").is_ok_and(|v| !v.is_empty());
-
-    match mode {
-        ColorMode::Never => colored::control::set_override(false),
-        ColorMode::Always => colored::control::set_override(true),
-        ColorMode::Auto => {
-            if no_color {
-                colored::control::set_override(false);
-            } else if std::io::stderr().is_terminal() {
-                colored::control::set_override(true);
-            }
-        }
     }
 }
 

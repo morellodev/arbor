@@ -47,14 +47,18 @@ pub(crate) fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
             .into_owned();
         let display_name = git::strip_git_suffix(&name).to_string();
 
-        if let Ok(worktrees) = git::worktree_infos(Some(&path))
-            && !worktrees.is_empty()
-        {
-            repos.push(RepoEntry {
-                display_name,
-                path,
-                worktrees,
-            });
+        match git::worktree_infos(Some(&path)) {
+            Ok(worktrees) if !worktrees.is_empty() => {
+                repos.push(RepoEntry {
+                    display_name,
+                    path,
+                    worktrees,
+                });
+            }
+            Ok(_) => {}
+            Err(e) => {
+                display::print_note(&format!("Skipping {display_name}: {e}"));
+            }
         }
     }
 

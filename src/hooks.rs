@@ -38,7 +38,6 @@ pub struct HookContext {
     pub worktree_path: PathBuf,
     pub branch: String,
     pub repo_name: String,
-    pub event: String,
 }
 
 fn load_project_config(worktree_path: &Path) -> anyhow::Result<Option<ProjectConfig>> {
@@ -139,7 +138,7 @@ pub fn run_post_create(ctx: &HookContext) {
         ),
         ("ARBOR_BRANCH".to_string(), ctx.branch.clone()),
         ("ARBOR_REPO".to_string(), ctx.repo_name.clone()),
-        ("ARBOR_EVENT".to_string(), ctx.event.clone()),
+        ("ARBOR_EVENT".to_string(), "post_create".to_string()),
     ];
 
     for cmd in &commands {

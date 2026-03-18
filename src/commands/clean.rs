@@ -101,40 +101,36 @@ pub fn run(delete_branch: bool) -> Result<()> {
             return Ok(());
         }
     };
-    let cwd = std::env::current_dir().ok();
-    let cwd_worktree = cwd.as_ref().and_then(|cwd| {
-        selections.iter().find_map(|&idx| {
-            display::cwd_is_inside(cwd, &worktrees[idx].path).then(|| worktrees[idx].path.clone())
-        })
-    });
-    let toplevel = if cwd_worktree.is_some() {
-        Some(git::repo_toplevel()?)
-    } else {
-        None
-    };
-
     let removed = remove_worktrees(&worktrees, &selections, delete_branch)?;
 
-    if let Some(ref cwd_wt) = cwd_worktree
-        && let Some(toplevel) = toplevel
-        && removed.iter().any(|p| p == cwd_wt)
-    {
+    if let Some(toplevel) = escape_dir_if_removed(&removed)? {
         println!("{}", toplevel.display());
     }
 
     Ok(())
 }
 
+fn escape_dir_if_removed(removed: &[PathBuf]) -> Result<Option<PathBuf>> {
+    for path in removed {
+        if let Some(toplevel) = display::escape_dir_if_cwd_inside(path)? {
+            return Ok(Some(toplevel));
+        }
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use crate::git::Tracking;
 
     use super::*;
 
     fn make_worktree(
         branch: Option<&str>,
         dirty: bool,
-        tracking: Option<(usize, usize)>,
+        tracking: Option<Tracking>,
     ) -> WorktreeInfo {
         WorktreeInfo {
             path: PathBuf::from("/tmp/test"),
@@ -158,7 +154,14 @@ mod tests {
 
     #[test]
     fn detached_with_upstream_is_not_abandoned() {
-        let wt = make_worktree(None, false, Some((0, 0)));
+        let wt = make_worktree(
+            None,
+            false,
+            Some(Tracking {
+                ahead: 0,
+                behind: 0,
+            }),
+        );
         assert!(!is_abandoned(&wt));
     }
 
@@ -170,13 +173,27 @@ mod tests {
 
     #[test]
     fn named_branch_with_tracking_is_not_abandoned() {
-        let wt = make_worktree(Some("main"), false, Some((0, 0)));
+        let wt = make_worktree(
+            Some("main"),
+            false,
+            Some(Tracking {
+                ahead: 0,
+                behind: 0,
+            }),
+        );
         assert!(!is_abandoned(&wt));
     }
 
     #[test]
     fn named_dirty_branch_is_not_abandoned() {
-        let wt = make_worktree(Some("feat"), true, Some((1, 0)));
+        let wt = make_worktree(
+            Some("feat"),
+            true,
+            Some(Tracking {
+                ahead: 1,
+                behind: 0,
+            }),
+        );
         assert!(!is_abandoned(&wt));
     }
 }

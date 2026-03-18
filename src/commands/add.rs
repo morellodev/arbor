@@ -25,8 +25,12 @@ pub fn run(config: &Config, branch: &str, base: Option<&str>, no_hooks: bool) ->
         return Ok(());
     }
 
-    fs::create_dir_all(wt_path.parent().unwrap())
-        .with_context(|| format!("Failed to create directory: {}", wt_path.display()))?;
+    fs::create_dir_all(
+        wt_path
+            .parent()
+            .context("Worktree path has no parent directory")?,
+    )
+    .with_context(|| format!("Failed to create directory: {}", wt_path.display()))?;
 
     if git::local_branch_exists(branch, None)? {
         if base.is_some() {
@@ -63,7 +67,6 @@ pub fn run(config: &Config, branch: &str, base: Option<&str>, no_hooks: bool) ->
             worktree_path: wt_path.clone(),
             branch: branch.to_string(),
             repo_name: repo_name.clone(),
-            event: "post_create".to_string(),
         });
     }
 

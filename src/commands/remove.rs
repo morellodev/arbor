@@ -64,6 +64,10 @@ fn remove_worktree(
 
     let toplevel = display::escape_dir_if_cwd_inside(wt_path)?;
 
+    if let Some(ref dir) = toplevel {
+        std::env::set_current_dir(dir)?;
+    }
+
     git::worktree_remove(wt_path, force)?;
     display::print_ok(&format!("Removed {}", display::shorten_path(wt_path)));
 

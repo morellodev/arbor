@@ -1,7 +1,7 @@
 Output demo.gif
 
 Set Shell zsh
-Set FontSize 16
+Set FontSize 20
 Set Width 1200
 Set Height 600
 Set Padding 20
@@ -15,7 +15,7 @@ Sleep 500ms
 Type `printf 'worktree_dir = "~/.arbor/worktrees"\nrepos_dir = "~/.arbor/repos"\n' > $HOME/.arbor/config.toml`
 Enter
 Sleep 500ms
-Type `mkdir -p /tmp/my-app && cd /tmp/my-app && rm -rf .git && git init -q && git config user.email dev@example.com && git config user.name Dev && git commit -q --allow-empty -m "initial commit"`
+Type `mkdir -p /tmp/my-app && cd /tmp/my-app && rm -rf .git && git init -q && git config user.email dev@example.com && git config user.name Dev && echo "# my-app" > README.md && git add . && git commit -q -m "initial commit"`
 Enter
 Sleep 1s
 Type `eval "$(arbor init zsh)"`
@@ -35,12 +35,12 @@ Enter
 Sleep 1.5s
 
 # Do some work in the feature worktree
-Type "echo 'TODO: implement OAuth' > auth.rs"
+Type "echo 'TODO: implement OAuth flow' > auth.rs"
 Sleep 300ms
 Enter
 Sleep 500ms
 
-# Urgent bug report — spin up another worktree without stashing
+# Urgent bug — spin up another worktree, no stashing needed
 Type "arbor add fix/login-crash"
 Sleep 300ms
 Enter
@@ -50,13 +50,7 @@ Sleep 1.5s
 Type "arbor ls"
 Sleep 300ms
 Enter
-Sleep 2s
-
-# Check which worktrees are dirty or ahead/behind
-Type "arbor ls --short"
-Sleep 300ms
-Enter
-Sleep 2s
+Sleep 2.5s
 
 # Bug fixed — switch back to the feature
 Type "arbor switch feature/auth"
@@ -64,13 +58,14 @@ Sleep 300ms
 Enter
 Sleep 1.5s
 
-# Clean up the fix branch and its worktree
-Type "arbor rm -d fix/login-crash"
+# Your work is right where you left it
+Type "cat auth.rs"
 Sleep 300ms
 Enter
-Sleep 1.5s
+Sleep 2s
 
-Type "arbor ls"
+# Clean up — remove the worktree and its branch
+Type "arbor rm -d fix/login-crash"
 Sleep 300ms
 Enter
 Sleep 2s

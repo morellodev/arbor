@@ -1,9 +1,8 @@
 [workspace]
-# Don't publish to crates.io — release.yml handles GitHub Release and Homebrew tap
-publish = false
 # Don't create GitHub Releases — release.yml handles that after tagging
 git_release_enable = false
-# Use git tags for version detection (not published to crates.io)
+# Use git tags for version detection (not published to crates.io).
+# Implies `cargo publish` is skipped.
 git_only = true
 # Tag format
 git_tag_name = "v{{ version }}"

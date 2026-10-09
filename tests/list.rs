@@ -243,6 +243,8 @@ fn list_all_notes_dirs_git_cannot_open() {
 }
 
 #[test]
+// Windows rejects control characters in file names, so the path can't exist there.
+#[cfg(not(windows))]
 fn list_escapes_control_characters_in_paths() {
     let env = TestEnv::new();
     common::commit_arbor_toml(&env, "worktree_dir = \"wt\\u001b[2K\"\n");

@@ -209,7 +209,8 @@ end"#;
 
 const BASH_BRANCH_COMPLETIONS: &str = r#"
 _arbor_branches() {
-  _arbor
+  _arbor "$@"
+  [[ "${COMP_WORDS[COMP_CWORD]}" == -* ]] && return
   case "${COMP_WORDS[1]}" in
     add)
       local branches

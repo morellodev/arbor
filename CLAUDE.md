@@ -48,11 +48,11 @@ cargo clippy --tests -- -D warnings # Lint (warnings treated as errors)
 - Error handling uses `anyhow::Result` throughout.
 - Only add comments where the logic isn't self-evident. Do not add comments that restate what the code does.
 - Rust edition 2024.
-- Commit messages follow [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `ci:`, `docs:`, `refactor:`, `test:`. Use `feat!:` or a `BREAKING CHANGE:` footer for breaking changes. Only `feat:` and `fix:` trigger version bumps — use `ci:` for CI/workflow changes and `chore:` for other non-user-facing changes.
+- Commit messages follow [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `ci:`, `docs:`, `refactor:`, `test:`. Use `feat!:` or a `BREAKING CHANGE:` footer for breaking changes. `feat:`, `fix:`, `refactor:` and `perf:` trigger a release (`release_commits` in `release-plz.toml`) — use `ci:` for CI/workflow changes and `chore:` for other non-user-facing changes.
 
 ## Releasing
 
-Releases are automated via [release-plz](https://release-plz.ieni.dev/). On each push to `main`, the `prepare-release.yml` workflow opens/updates a release PR with version bump and changelog. Merging that PR tags and triggers `release.yml`, which builds cross-platform binaries, creates a GitHub Release, and updates the Homebrew tap (`morellodev/homebrew-tap`).
+Releases are automated via [release-plz](https://release-plz.ieni.dev/). On each push to `main`, the `prepare-release.yml` workflow opens/updates a release PR with version bump and changelog. Merging that PR makes release-plz tag and publish the GitHub Release, which triggers `release.yml` to build cross-platform binaries, attach them, and update the Homebrew tap (`morellodev/homebrew-tap`). release-plz runs with a GitHub App token (`APP_CLIENT_ID` variable, `APP_PRIVATE_KEY` secret) because releases and PRs created with the default `GITHUB_TOKEN` trigger no workflows: `release.yml` would never start and CI would skip the release PR.
 
 ## README intro video
 

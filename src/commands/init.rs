@@ -105,11 +105,26 @@ fn already_configured(path: &Path) -> Result<bool> {
 fn sources_bashrc(path: &Path) -> Result<bool> {
     let content = read_config(path)?;
     Ok(String::from_utf8_lossy(&content).lines().any(|line| {
-        let line = line.trim_start();
-        !line.starts_with('#')
-            && line.contains(".bashrc")
-            && (line.contains("source") || line.contains(". "))
+        !line.trim_start().starts_with('#')
+            && line.split(['&', '|', ';']).any(sources_bashrc_statement)
     }))
+}
+
+/// Only an actual `. ~/.bashrc` / `source "$HOME/.bashrc"`, not e.g. `~/.bashrc.local`
+/// or an alias that mentions it.
+fn sources_bashrc_statement(statement: &str) -> bool {
+    let mut words = statement.split_whitespace();
+    let mut command = words.next();
+    if matches!(command, Some("then" | "do" | "{")) {
+        command = words.next();
+    }
+    matches!(command, Some("." | "source"))
+        && words.next().is_some_and(|arg| {
+            matches!(
+                arg.trim_matches(['"', '\'']),
+                "~/.bashrc" | "$HOME/.bashrc" | "${HOME}/.bashrc"
+            )
+        })
 }
 
 fn needs_integration(path: &Path) -> Result<bool> {
@@ -150,10 +165,14 @@ pub fn run(shell: Option<&str>, inject: bool) -> Result<()> {
     let files = config_files(&shell)?;
     let line = eval_line(&shell);
     let mut targets = Vec::new();
+    let mut seen = Vec::new();
     for path in &files {
-        if needs_integration(path)? {
+        // A login file symlinked to ~/.bashrc is the same file.
+        let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.clone());
+        if !seen.contains(&canonical) && needs_integration(path)? {
             targets.push(path.as_path());
         }
+        seen.push(canonical);
     }
 
     if targets.is_empty() {
@@ -294,15 +313,16 @@ end"#;
 const ZSH_COMPINIT: &str = r#"
 if (( ! $+functions[compdef] )); then
   typeset -ga _arbor_compdefs
-  compdef() { _arbor_compdefs+=("$*") }
+  # Quoted, so arguments with spaces (bashcompinit's `complete -C ...`) survive the replay.
+  compdef() { _arbor_compdefs+=("${(j: :)${(q)@}}") }
   _arbor_compinit() {
     add-zsh-hook -d precmd _arbor_compinit
-    if [[ $functions[compdef] == *_arbor_compdefs* ]]; then
-      unfunction compdef
+    # compinit creates _comps; without it nothing ran compinit since the stub.
+    if (( ! ${+_comps} )); then
       autoload -Uz compinit && compinit -i
     fi
     local args
-    for args in $_arbor_compdefs; do compdef ${=args}; done
+    for args in $_arbor_compdefs; do eval "compdef $args"; done
     unset _arbor_compdefs
     unfunction _arbor_compinit
   }
@@ -380,3 +400,38 @@ complete -c arbor -n '__fish_seen_subcommand_from add' -f -a '(git for-each-ref 
 
 complete -c arbor -n '__fish_seen_subcommand_from switch cd rm remove dir' -f -a '(git worktree list --porcelain 2>/dev/null | string match -r "^branch refs/heads/(.*)" | string replace -r "^branch refs/heads/" "")'
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recognizes_statements_that_source_bashrc() {
+        for line in [
+            ". ~/.bashrc",
+            "source \"$HOME/.bashrc\"",
+            "[ -f ~/.bashrc ] && . ~/.bashrc",
+            "if [ -f ~/.bashrc ]; then . ~/.bashrc; fi",
+            "test -r ${HOME}/.bashrc && source ${HOME}/.bashrc",
+        ] {
+            assert!(
+                line.split(['&', '|', ';']).any(sources_bashrc_statement),
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn ignores_lines_that_only_mention_bashrc() {
+        for line in [
+            "[ -f ~/.bashrc.local ] && source ~/.bashrc.local",
+            "alias reload=\"source ~/.bashrc\"",
+            "export BASHRC=~/.bashrc",
+        ] {
+            assert!(
+                !line.split(['&', '|', ';']).any(sources_bashrc_statement),
+                "{line}"
+            );
+        }
+    }
+}

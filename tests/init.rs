@@ -536,3 +536,54 @@ fn init_inject_bash_completes_an_existing_bashrc_setup_on_macos() {
             .contains("arbor init bash")
     );
 }
+
+#[test]
+#[cfg(target_os = "macos")]
+fn init_inject_bash_writes_once_when_the_login_file_links_to_bashrc() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    fs::write(home.join(".bashrc"), "export A=1\n").unwrap();
+    std::os::unix::fs::symlink(".bashrc", home.join(".bash_profile")).unwrap();
+
+    env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    let bashrc = fs::read_to_string(home.join(".bashrc")).unwrap();
+    assert_eq!(
+        bashrc.matches("arbor init bash").count(),
+        1,
+        "got: {bashrc}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn zsh_queued_completions_keep_arguments_with_spaces() {
+    let env = TestEnv::new();
+    let script = env.arbor(&["init", "zsh"]).output().unwrap();
+    let script_path = env.home.path().join("arbor.zsh");
+    fs::write(&script_path, &script.stdout).unwrap();
+
+    // Calls the first-prompt hook directly, since `zsh -c` never shows a prompt.
+    let Ok(output) = std::process::Command::new("zsh")
+        .args([
+            "-f",
+            "-c",
+            r#"source "$1"
+compdef "_bash_complete -o nospace -C /usr/bin/tf" tf
+_arbor_compinit
+print -r -- "$_comps[tf]""#,
+            "zsh",
+        ])
+        .arg(&script_path)
+        .env("HOME", env.home.path())
+        .output()
+    else {
+        eprintln!("zsh not installed, skipping");
+        return;
+    };
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "_bash_complete -o nospace -C /usr/bin/tf",
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

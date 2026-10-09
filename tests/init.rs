@@ -183,13 +183,19 @@ fn init_inject_detects_eval_without_shell_arg() {
     );
 }
 
+#[cfg(not(windows))]
+fn write_bash_script(env: &TestEnv) -> std::path::PathBuf {
+    let script = env.arbor(&["init", "bash"]).output().unwrap();
+    let script_path = env.home.path().join("arbor.bash");
+    fs::write(&script_path, &script.stdout).unwrap();
+    script_path
+}
+
 #[test]
 #[cfg(not(windows))]
 fn init_bash_completion_keeps_flags_for_branch_commands() {
     let env = TestEnv::new();
-    let script = env.arbor(&["init", "bash"]).output().unwrap();
-    let script_path = env.home.path().join("arbor.bash");
-    fs::write(&script_path, &script.stdout).unwrap();
+    let script_path = write_bash_script(&env);
 
     let output = std::process::Command::new("bash")
         .arg("-c")
@@ -208,4 +214,66 @@ fn init_bash_completion_keeps_flags_for_branch_commands() {
         "flag completion should survive branch completion, got: {stdout} / {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn bash_wrapper_cds_when_global_flag_precedes_subcommand() {
+    let env = TestEnv::new();
+    let script_path = write_bash_script(&env);
+
+    let bin_dir = std::path::Path::new(env!("CARGO_BIN_EXE_arbor"))
+        .parent()
+        .unwrap();
+    let path = format!("{}:{}", bin_dir.display(), std::env::var("PATH").unwrap());
+
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(r#"source "$1" 2>/dev/null; arbor --color never add feat >/dev/null 2>&1; pwd"#)
+        .arg("bash")
+        .arg(&script_path)
+        .current_dir(env.repo.path())
+        .env("PATH", path)
+        .env("HOME", env.home.path())
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", env.home.path().join(".gitconfig"))
+        .output()
+        .unwrap();
+
+    let cwd = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        cwd.trim_end().ends_with("/feat"),
+        "wrapper should cd into the new worktree, ended in: {cwd}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn bash_branch_completion_works_after_global_flags() {
+    let env = TestEnv::new();
+    env.add_worktree("feat");
+    let script_path = write_bash_script(&env);
+
+    for words in [
+        "arbor --color never switch ''",
+        "arbor --color = never switch ''",
+    ] {
+        let output = std::process::Command::new("bash")
+            .arg("-c")
+            .arg(format!(
+                r#"source "$1"; COMP_WORDS=({words}); COMP_CWORD=$((${{#COMP_WORDS[@]}} - 1)); _arbor_branches; echo "${{COMPREPLY[*]}}""#
+            ))
+            .arg("bash")
+            .arg(&script_path)
+            .current_dir(env.repo.path())
+            .output()
+            .unwrap();
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.split_whitespace().any(|w| w == "feat"),
+            "branches should complete after `{words}`, got: {stdout} / {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }

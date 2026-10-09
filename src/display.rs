@@ -117,7 +117,7 @@ pub fn print_path_hint(path: &Path) {
 }
 
 pub fn shorten_path(path: &Path) -> String {
-    if let Some(home) = dirs::home_dir()
+    if let Some(home) = std::env::home_dir()
         && let Ok(relative) = path.strip_prefix(&home)
     {
         return format!("~/{}", relative.display());

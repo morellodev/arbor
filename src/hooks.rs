@@ -235,7 +235,7 @@ post_create = "npm install"
 
     #[test]
     fn resolve_tilde_worktree_dir() {
-        let home = dirs::home_dir().unwrap();
+        let home = std::env::home_dir().unwrap();
         let result = resolve_worktree_dir("~/custom/wt", Path::new("/some/repo")).unwrap();
         assert_eq!(result, home.join("custom/wt"));
     }

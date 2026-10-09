@@ -48,7 +48,7 @@ impl Shell {
 }
 
 fn config_file_path(shell: &Shell) -> Result<PathBuf> {
-    let home = dirs::home_dir().context("Could not determine home directory")?;
+    let home = std::env::home_dir().context("Could not determine home directory")?;
     Ok(match shell {
         Shell::Bash => home.join(".bashrc"),
         Shell::Zsh => home.join(".zshrc"),

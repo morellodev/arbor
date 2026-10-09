@@ -101,7 +101,7 @@ arbor init --inject
 | `arbor dir [branch]` | | Print the worktree path for a branch. With no argument, shows an interactive fuzzy selector. Accepts both `feature/auth` and `feature-auth`. |
 | `arbor clone <url> [--no-worktree] [--no-hooks]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. `--no-hooks` skips post-create hooks. |
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
-| `arbor clean [-d]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. |
+| `arbor clean [-d] [-f]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. Worktrees with uncommitted changes are left in place unless `-f` / `--force` is passed. |
 | `arbor prune` | | Remove stale worktree references. |
 | `arbor init [shell] [--inject]` | | Set up shell integration (cd wrapper + completions). Auto-detects shell from `$SHELL`. `--inject` writes to your shell config non-interactively. |
 

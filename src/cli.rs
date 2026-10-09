@@ -123,6 +123,9 @@ Examples:
         /// Also delete local branches after removing worktrees
         #[arg(long, short)]
         delete_branch: bool,
+        /// Also remove selected worktrees that have uncommitted changes
+        #[arg(long, short)]
+        force: bool,
     },
 
     /// Remove references to stale worktrees

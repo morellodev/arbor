@@ -229,6 +229,10 @@ pub fn summarize(worktrees: &[WorktreeInfo]) -> WorktreeSummary {
     }
 }
 
+pub fn plural<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
+    if count == 1 { singular } else { plural }
+}
+
 pub fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     let mut parts = Vec::new();
 
@@ -256,21 +260,18 @@ pub fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     };
 
     format!(
-        "{} {} {} worktrees ({})",
+        "{} {} {} {} ({})",
         label.bold(),
         "—".dimmed(),
         summary.total,
+        plural(summary.total, "worktree", "worktrees"),
         details,
     )
 }
 
 pub fn print_fetch_summary(success: usize, failed: usize) {
     let total = success + failed;
-    let noun = if total == 1 {
-        "repository"
-    } else {
-        "repositories"
-    };
+    let noun = plural(total, "repository", "repositories");
     if failed > 0 {
         print_note(&format!(
             "Fetched {success}/{total} {noun} ({} failed)",
@@ -300,11 +301,7 @@ pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
         },
     );
     let repos = summaries.len();
-    let label = format!(
-        "Total ({} {})",
-        repos,
-        if repos == 1 { "repo" } else { "repos" }
-    );
+    let label = format!("Total ({repos} {})", plural(repos, "repo", "repos"));
     eprintln!("{}", format_summary(&label, &aggregate));
 }
 
@@ -350,4 +347,32 @@ pub fn print_table(entries: &[WorktreeInfo], show_paths: bool) {
     }
 
     println!("{table}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plural_picks_singular_only_for_one() {
+        assert_eq!(plural(0, "branch", "branches"), "branches");
+        assert_eq!(plural(1, "branch", "branches"), "branch");
+        assert_eq!(plural(2, "branch", "branches"), "branches");
+    }
+
+    #[test]
+    fn format_summary_uses_singular_for_one_worktree() {
+        colored::control::set_override(false);
+        let summary = WorktreeSummary {
+            total: 1,
+            dirty: 0,
+            ahead: 0,
+            behind: 0,
+            detached: 0,
+        };
+        assert_eq!(
+            format_summary("repo", &summary),
+            "repo — 1 worktree (all clean)"
+        );
+    }
 }

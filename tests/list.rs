@@ -41,6 +41,10 @@ fn list_shows_worktrees() {
         stdout.contains("clean"),
         "list output should show clean state, got: {stdout}"
     );
+    assert!(
+        stdout.contains("2 worktrees ("),
+        "summary should use plural noun, got: {stdout}"
+    );
 }
 
 #[test]
@@ -150,4 +154,17 @@ fn fetch_all_succeeds_with_no_repos() {
     let env = TestEnv::new();
     let output = env.arbor(&["fetch", "--all"]).output().unwrap();
     assert!(output.status.success());
+}
+
+#[test]
+fn list_summary_pluralizes_worktree_count() {
+    let env = TestEnv::new();
+
+    let output = env.arbor(&["list"]).output().unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("1 worktree ("),
+        "single worktree should use singular noun, got: {stdout}"
+    );
 }

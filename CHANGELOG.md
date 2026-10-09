@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.2](https://github.com/morellodev/arbor/compare/v0.3.1...v0.3.2) - 2026-10-09
+
+### Fixed
+
+- pluralize worktree count in list summary
+
+### Other
+
+- gate unix-only test imports to fix windows warnings
+- *(ci)* align release-plz config with upstream docs
+- revamp demo tape for clarity and impact
+
 ## [0.3.1](https://github.com/morellodev/arbor/compare/v0.3.0...v0.3.1) - 2026-03-18
 
 ### Added

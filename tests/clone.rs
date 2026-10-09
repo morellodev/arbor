@@ -103,3 +103,28 @@ fn add_in_bare_repo_honors_committed_worktree_dir() {
         fs::canonicalize(&custom).unwrap().join("feat"),
     );
 }
+
+#[test]
+fn clone_dot_names_the_repo_after_its_directory() {
+    let env = TestEnv::new();
+    let output = env
+        .arbor_in(env.repo.path(), &["clone", ".", "--no-worktree"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "clone . should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let repo_name = env.repo.path().file_name().unwrap().to_string_lossy();
+    let expected = env
+        .home
+        .path()
+        .join(format!(".arbor/repos/{repo_name}.git"));
+    assert!(
+        expected.is_dir(),
+        "expected bare repo at {}",
+        expected.display()
+    );
+}

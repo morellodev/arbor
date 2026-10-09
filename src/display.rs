@@ -32,6 +32,20 @@ pub fn cwd_is_inside(cwd: &Path, worktree_path: &Path) -> bool {
     cwd.starts_with(&worktree_path)
 }
 
+/// Index of the deepest path containing `cwd`, so a worktree nested inside the
+/// main checkout wins over the main checkout.
+pub fn innermost_containing<'a>(
+    cwd: &Path,
+    paths: impl IntoIterator<Item = &'a Path>,
+) -> Option<usize> {
+    paths
+        .into_iter()
+        .enumerate()
+        .filter(|(_, path)| cwd_is_inside(cwd, path))
+        .max_by_key(|(_, path)| path.components().count())
+        .map(|(i, _)| i)
+}
+
 pub fn escape_dir_if_cwd_inside(wt_path: &Path) -> Result<Option<PathBuf>> {
     let inside = std::env::current_dir()
         .ok()
@@ -76,7 +90,7 @@ pub fn fuzzy_select_worktree(
 
 fn find_current_index(entries: &[WorktreeInfo]) -> Option<usize> {
     let cwd = std::env::current_dir().ok()?;
-    entries.iter().position(|wt| cwd_is_inside(&cwd, &wt.path))
+    innermost_containing(&cwd, entries.iter().map(|wt| wt.path.as_path()))
 }
 
 pub fn print_ok(msg: &str) {

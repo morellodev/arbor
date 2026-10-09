@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 use std::path::Path;
 
-use common::{TestEnv, git_cmd, stdout_canon};
+use common::{TestEnv, commit_arbor_toml, git_cmd, stdout_canon};
 use tempfile::TempDir;
 
 #[test]
@@ -345,4 +345,26 @@ fn remove_dot_force_dirty_worktree() {
         !Path::new(&wt_path).exists(),
         "worktree directory should be gone after forced removal"
     );
+}
+
+#[test]
+fn remove_dot_in_nested_worktree_removes_inner_worktree() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+    let wt_path = env.add_worktree("feat");
+
+    let rm_out = env
+        .arbor_in(Path::new(&wt_path), &["rm", "."])
+        .output()
+        .unwrap();
+    assert!(
+        rm_out.status.success(),
+        "rm . should succeed, stderr: {}",
+        String::from_utf8_lossy(&rm_out.stderr)
+    );
+    assert!(
+        !Path::new(&wt_path).exists(),
+        "nested worktree should be gone after rm ."
+    );
+    assert!(env.repo.path().exists(), "main worktree must survive");
 }

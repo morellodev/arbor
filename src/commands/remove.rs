@@ -32,15 +32,16 @@ pub fn run(branch: Option<&str>, force: bool, delete_branch: bool) -> Result<()>
 fn resolve_dot() -> Result<(PathBuf, Option<String>)> {
     let cwd = std::env::current_dir()?;
     let porcelain = git::worktree_list_porcelain(None)?;
-    let worktrees = git::parse_worktree_list(&porcelain);
-
-    let wt = worktrees
+    let mut worktrees: Vec<_> = git::parse_worktree_list(&porcelain)
         .into_iter()
         .filter(|wt| !wt.bare)
-        .find(|wt| display::cwd_is_inside(&cwd, &wt.path));
+        .collect();
 
-    match wt {
-        Some(wt) => Ok((wt.path, wt.branch)),
+    match display::innermost_containing(&cwd, worktrees.iter().map(|wt| wt.path.as_path())) {
+        Some(idx) => {
+            let wt = worktrees.swap_remove(idx);
+            Ok((wt.path, wt.branch))
+        }
         None => bail!("Not inside a worktree"),
     }
 }

@@ -88,10 +88,29 @@ fn already_configured(path: &Path) -> Result<bool> {
     // The shell argument is optional (`eval "$(arbor init)"`), and the file is
     // already specific to this shell, so any line loading `arbor init` counts.
     Ok(String::from_utf8_lossy(&content).lines().any(|line| {
-        !line.trim_start().starts_with('#')
+        let line = line.trim_start();
+        !line.starts_with('#')
             && line.contains("arbor init")
-            && (line.contains("eval") || line.contains("source"))
+            && (line.contains("eval") || line.contains("source") || line.starts_with(". "))
     }))
+}
+
+/// macOS bash setups from before arbor targeted the login file live in ~/.bashrc,
+/// which ~/.bash_profile usually sources.
+fn configured_file(shell: &Shell, config_path: &Path) -> Result<Option<PathBuf>> {
+    let mut candidates = vec![config_path.to_path_buf()];
+    if matches!(shell, Shell::Bash)
+        && cfg!(target_os = "macos")
+        && let Some(home) = std::env::home_dir()
+    {
+        candidates.push(home.join(".bashrc"));
+    }
+    for path in candidates {
+        if already_configured(&path)? {
+            return Ok(Some(path));
+        }
+    }
+    Ok(None)
 }
 
 fn inject_into_config(path: &Path, line: &str) -> Result<()> {
@@ -128,9 +147,9 @@ pub fn run(shell: Option<&str>, inject: bool) -> Result<()> {
     let line = eval_line(&shell);
     let short_path = display::shorten_path(&config_path);
 
-    if already_configured(&config_path)? {
+    if let Some(found) = configured_file(&shell, &config_path)? {
         display::print_ok("Shell integration is already configured");
-        display::print_hint(&format!("Found in {short_path}"));
+        display::print_hint(&format!("Found in {}", display::shorten_path(&found)));
         return Ok(());
     }
 
@@ -247,10 +266,26 @@ const FISH_WRAPPER: &str = r#"function arbor --wraps arbor
   end
 end"#;
 
-// A fresh zsh (no ~/.zshrc on macOS) has no compdef, so registering completions fails.
+// Without compdef yet, registrations are queued and replayed at the first prompt, so a
+// compinit later in .zshrc (oh-my-zsh, zinit) still runs once; a fresh zsh with no
+// compinit at all (macOS has no default ~/.zshrc) gets one then.
 const ZSH_COMPINIT: &str = r#"
 if (( ! $+functions[compdef] )); then
-  autoload -Uz compinit && compinit -i
+  typeset -ga _arbor_compdefs
+  compdef() { _arbor_compdefs+=("$*") }
+  _arbor_compinit() {
+    add-zsh-hook -d precmd _arbor_compinit
+    if [[ $functions[compdef] == *_arbor_compdefs* ]]; then
+      unfunction compdef
+      autoload -Uz compinit && compinit -i
+    fi
+    local args
+    for args in $_arbor_compdefs; do compdef ${=args}; done
+    unset _arbor_compdefs
+    unfunction _arbor_compinit
+  }
+  autoload -Uz add-zsh-hook
+  add-zsh-hook precmd _arbor_compinit
 fi
 "#;
 

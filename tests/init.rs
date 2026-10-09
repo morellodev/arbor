@@ -478,3 +478,30 @@ fn init_ignores_a_broken_config() {
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("arbor()"));
 }
+
+#[test]
+#[cfg(not(windows))]
+fn init_inject_detects_dot_sourcing() {
+    let env = TestEnv::new();
+    let zshrc_path = env.home.path().join(".zshrc");
+    fs::write(&zshrc_path, ". <(arbor init zsh)\n").unwrap();
+
+    let output = env.arbor(&["init", "zsh", "--inject"]).output().unwrap();
+    assert!(String::from_utf8_lossy(&output.stderr).contains("already configured"));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn init_inject_bash_finds_existing_setup_in_bashrc_on_macos() {
+    let env = TestEnv::new();
+    fs::write(
+        env.home.path().join(".bashrc"),
+        "eval \"$(arbor init bash)\"\n",
+    )
+    .unwrap();
+
+    let output = env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("already configured"), "got: {stderr}");
+    assert!(!env.home.path().join(".bash_profile").exists());
+}

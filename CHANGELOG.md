@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.3](https://github.com/morellodev/arbor/compare/v0.3.2...v0.3.3) - 2026-10-09
+
+### Fixed
+
+- resolve home directory from USERPROFILE on windows
+
+### Other
+
+- update workflow actions and use pinned toolchain
+- update rust toolchain to 1.99.0
+- *(deps)* update dependencies
+- gate unix-only test imports to fix windows warnings
+
 ## [0.3.2](https://github.com/morellodev/arbor/compare/v0.3.1...v0.3.2) - 2026-10-09
 
 ### Fixed

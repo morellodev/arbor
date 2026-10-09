@@ -327,6 +327,10 @@ fn list_marks_worktrees_whose_directory_is_gone() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let row = stdout.lines().find(|l| l.contains("gone")).unwrap();
     assert!(row.contains("missing"), "got: {stdout}");
+    assert!(
+        stdout.contains("1 missing"),
+        "the summary should count it, got: {stdout}"
+    );
 
     let json = env.arbor(&["ls", "--json"]).output().unwrap();
     let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();

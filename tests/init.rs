@@ -1,5 +1,6 @@
 mod common;
 
+#[cfg(not(windows))]
 use std::fs;
 
 use common::TestEnv;

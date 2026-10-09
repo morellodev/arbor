@@ -10,3 +10,15 @@ changelog_update = true
 release_commits = "^(feat|fix|refactor|perf)[(:!]"
 # Only release when a release PR (branch prefix `release-plz-`) is merged
 release_always = false
+
+[changelog]
+# release-plz's default parsers, with ci and test commits left out of the changelog.
+commit_parsers = [
+    { message = "^(ci|test)[(:!]", skip = true },
+    { message = "^feat", group = "added" },
+    { message = "^changed", group = "changed" },
+    { message = "^deprecated", group = "deprecated" },
+    { message = "^fix", group = "fixed" },
+    { message = "^security", group = "security" },
+    { message = "^.*", group = "other" },
+]

@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.4](https://github.com/morellodev/arbor/compare/v0.3.3...v0.3.4) - 2026-10-09
+
+### Fixed
+
+- detect shell integration added without an explicit shell argument
+- refuse to reuse a worktree path that belongs to another branch
+- return the existing worktree when add targets a branch checked out elsewhere
+- decide stdout colors from stdout instead of stderr
+- keep flag completion in bash for commands with branch completion
+- ignore trailing slashes when deriving the repo name from a clone url
+- read worktree_dir from HEAD when adding a worktree in a bare repo
+- keep only the default branch after a bare clone so later adds use fresh remote refs
+- leave the current worktree before clean removes it
+- resolve the innermost worktree when worktrees are nested in the main checkout
+
+### Other
+
+- replace demo gif with intro video
+
 ## [0.3.3](https://github.com/morellodev/arbor/compare/v0.3.2...v0.3.3) - 2026-10-09
 
 ### Fixed

@@ -334,19 +334,6 @@ fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     )
 }
 
-pub fn print_fetch_summary(success: usize, failed: usize) {
-    let total = success + failed;
-    let noun = plural(total, "repository", "repositories");
-    if failed > 0 {
-        note_line(&format!(
-            "Fetched {success}/{total} {noun} ({} failed)",
-            failed.to_string().red()
-        ));
-    } else {
-        print_note(&format!("Fetched {total} {noun}"));
-    }
-}
-
 pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
     let aggregate = summaries.iter().fold(
         WorktreeSummary {

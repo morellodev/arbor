@@ -11,14 +11,20 @@ fn is_abandoned(wt: &WorktreeInfo) -> bool {
     wt.branch.is_none() && !wt.dirty && wt.tracking.is_none() && wt.in_progress.is_none()
 }
 
+struct CleanResult {
+    removed: Vec<PathBuf>,
+    failures: usize,
+}
+
 fn remove_worktrees(
     worktrees: &[WorktreeInfo],
     selections: &[usize],
     delete_branch: bool,
     force: bool,
-) -> Result<Vec<PathBuf>> {
+) -> CleanResult {
     let mut removed_paths = Vec::new();
     let mut branches_deleted = 0;
+    let mut failures = 0;
 
     for &idx in selections {
         let wt = &worktrees[idx];
@@ -35,6 +41,7 @@ fn remove_worktrees(
                 "Skipped {label}: a {} is in progress. Use --force to remove it anyway.",
                 op.operation
             ));
+            failures += 1;
             continue;
         }
 
@@ -53,6 +60,7 @@ fn remove_worktrees(
                             display::print_error(&format!(
                                 "Could not delete branch '{branch}': {e}"
                             ));
+                            failures += 1;
                         }
                     }
                 }
@@ -60,6 +68,7 @@ fn remove_worktrees(
             Err(e) => {
                 let label = wt.branch.as_deref().unwrap_or(&short_path);
                 display::print_error(&format!("Failed to remove worktree for '{label}': {e}"));
+                failures += 1;
             }
         }
     }
@@ -79,7 +88,10 @@ fn remove_worktrees(
         display::print_ok(&summary);
     }
 
-    Ok(removed_paths)
+    CleanResult {
+        removed: removed_paths,
+        failures,
+    }
 }
 
 pub fn run(delete_branch: bool, force: bool) -> Result<()> {
@@ -136,14 +148,21 @@ pub fn run(delete_branch: bool, force: bool) -> Result<()> {
         std::env::set_current_dir(dir)?;
     }
 
-    let removed = remove_worktrees(&worktrees, &selections, delete_branch, force)?;
+    let result = remove_worktrees(&worktrees, &selections, delete_branch, force);
 
     if let (Some(toplevel), Some(path)) = (toplevel, cwd_worktree)
-        && removed.iter().any(|p| p == path)
+        && result.removed.iter().any(|p| p == path)
     {
         println!("{}", toplevel.display());
     }
 
+    if result.failures > 0 {
+        let n = result.failures;
+        bail!(
+            "Clean finished with {n} {}",
+            display::plural(n, "error", "errors")
+        );
+    }
     Ok(())
 }
 

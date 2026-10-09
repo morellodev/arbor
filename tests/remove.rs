@@ -68,6 +68,10 @@ fn remove_force_keeps_unmerged_branch() {
         .unwrap();
 
     assert!(
+        !rm_out.status.success(),
+        "a branch that could not be deleted is an error"
+    );
+    assert!(
         !Path::new(&wt_path).exists(),
         "--force removes the dirty worktree"
     );

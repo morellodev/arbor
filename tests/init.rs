@@ -216,34 +216,74 @@ fn init_bash_completion_keeps_flags_for_branch_commands() {
     );
 }
 
-#[test]
+/// Runs `commands` in bash with the wrapper loaded and the test binary on PATH.
 #[cfg(not(windows))]
-fn bash_wrapper_cds_when_global_flag_precedes_subcommand() {
-    let env = TestEnv::new();
-    let script_path = write_bash_script(&env);
-
+fn run_wrapped(env: &TestEnv, cwd: &std::path::Path, commands: &str) -> std::process::Output {
+    let script_path = write_bash_script(env);
     let bin_dir = std::path::Path::new(env!("CARGO_BIN_EXE_arbor"))
         .parent()
         .unwrap();
     let path = format!("{}:{}", bin_dir.display(), std::env::var("PATH").unwrap());
 
-    let output = std::process::Command::new("bash")
+    std::process::Command::new("bash")
         .arg("-c")
-        .arg(r#"source "$1" 2>/dev/null; arbor --color never add feat >/dev/null 2>&1; pwd"#)
+        .arg(format!(r#"source "$1" 2>/dev/null; {commands}"#))
         .arg("bash")
         .arg(&script_path)
-        .current_dir(env.repo.path())
+        .current_dir(cwd)
         .env("PATH", path)
         .env("HOME", env.home.path())
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", env.home.path().join(".gitconfig"))
         .output()
-        .unwrap();
+        .unwrap()
+}
+
+#[test]
+#[cfg(not(windows))]
+fn bash_wrapper_cds_when_global_flag_precedes_subcommand() {
+    let env = TestEnv::new();
+    let output = run_wrapped(
+        &env,
+        env.repo.path(),
+        "arbor --color never add feat >/dev/null 2>&1; pwd",
+    );
 
     let cwd = String::from_utf8_lossy(&output.stdout);
     assert!(
         cwd.trim_end().ends_with("/feat"),
         "wrapper should cd into the new worktree, ended in: {cwd}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn bash_wrapper_leaves_removed_worktree_even_when_the_command_fails() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("unmerged");
+    common::git_cmd(
+        std::path::Path::new(&wt_path),
+        &["commit", "--allow-empty", "-m", "wip"],
+        env.home.path(),
+    );
+
+    let output = run_wrapped(
+        &env,
+        std::path::Path::new(&wt_path),
+        "arbor rm -d . 2>/dev/null; echo \"$?\"; pwd -P",
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut lines = stdout.lines();
+    assert_eq!(
+        lines.next(),
+        Some("1"),
+        "the failed branch deletion should be reported, got: {stdout}"
+    );
+    assert_eq!(
+        lines.next().map(std::path::PathBuf::from),
+        Some(fs::canonicalize(env.repo.path()).unwrap()),
+        "the shell should leave the deleted worktree"
     );
 }
 

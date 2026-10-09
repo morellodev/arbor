@@ -79,6 +79,7 @@ fn remove_worktree(
     git::worktree_remove(wt_path, force)?;
     display::print_ok(&format!("Removed {}", display::shorten_path(wt_path)));
 
+    let mut result = Ok(());
     if delete_branch {
         if let Some(branch) = actual_branch {
             match git::delete_branch(branch, toplevel.as_deref()) {
@@ -87,16 +88,17 @@ fn remove_worktree(
                     let suffix = hash.map_or(String::new(), |h| format!(" (was {h})"));
                     display::print_ok(&format!("Deleted branch '{branch}'{suffix}"));
                 }
-                Err(e) => display::print_error(&format!("Could not delete branch '{branch}': {e}")),
+                Err(e) => result = Err(e.context(format!("Could not delete branch '{branch}'"))),
             }
         } else {
             display::print_note("Skipped branch deletion (detached HEAD)");
         }
     }
 
+    // Printed even on failure: the worktree is gone, so the shell must still leave it.
     if let Some(toplevel) = toplevel {
         println!("{}", toplevel.display());
     }
 
-    Ok(())
+    result
 }

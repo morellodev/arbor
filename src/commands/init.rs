@@ -186,9 +186,12 @@ const SHELL_WRAPPER: &str = r#"arbor() {
   done
   case "$subcommand" in
     add|switch|cd|clone|remove|rm|clean)
-      local dir
-      dir=$(command arbor "$@") || return $?
-      if [ -n "$dir" ]; then cd "$dir"; fi
+      # On failure, a path on stdout still means the cwd was deleted.
+      local dir rc
+      dir=$(command arbor "$@")
+      rc=$?
+      if [ -n "$dir" ] && [ -d "$dir" ]; then cd "$dir" || return; fi
+      return $rc
       ;;
     *)
       command arbor "$@"
@@ -216,10 +219,11 @@ const FISH_WRAPPER: &str = r#"function arbor --wraps arbor
   switch "$subcommand"
     case add switch cd clone remove rm clean
       set -l dir (command arbor $argv)
-      or return $status
-      if test -n "$dir"
+      set -l rc $status
+      if test -n "$dir"; and test -d "$dir"
         cd $dir
       end
+      return $rc
     case '*'
       command arbor $argv
   end

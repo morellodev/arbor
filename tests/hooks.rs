@@ -1,9 +1,13 @@
 mod common;
 
+#[cfg(not(windows))]
 use std::fs;
+#[cfg(not(windows))]
 use std::path::Path;
 
-use common::{TestEnv, commit_arbor_toml, stdout_path};
+use common::TestEnv;
+#[cfg(not(windows))]
+use common::{commit_arbor_toml, stdout_path};
 
 #[test]
 #[cfg(not(windows))]

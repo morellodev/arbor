@@ -266,15 +266,24 @@ pub fn resolve_worktree_branch(branch: &str, cwd: Option<&Path>) -> Result<(Path
     let mut sanitized_match = None;
 
     for wt in &worktrees {
-        if let Some(b) = wt.branch.as_deref() {
+        let name = match &wt.branch {
+            Some(b) => Some(b.clone()),
+            None if !wt.bare => operation_in_progress(&wt.path).and_then(|op| op.branch),
+            None => None,
+        };
+        if let Some(b) = name {
             if b == branch {
-                return Ok((wt.path.clone(), branch.to_string()));
+                return Ok((wt.path.clone(), b));
             }
-            if sanitized_match.is_none() && sanitize_branch(b) == sanitized_input {
-                sanitized_match = Some((wt.path.clone(), b.to_string()));
+            if sanitized_match.is_none() && sanitize_branch(&b) == sanitized_input {
+                sanitized_match = Some((wt.path.clone(), b));
             }
         }
     }
 
-    sanitized_match.ok_or_else(|| anyhow::anyhow!("No worktree found for branch '{branch}'"))
+    sanitized_match.ok_or_else(|| {
+        anyhow::anyhow!(
+            "No worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?"
+        )
+    })
 }

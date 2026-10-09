@@ -1,12 +1,10 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use crate::{display, git};
 
 pub fn run(branch: Option<&str>) -> Result<()> {
     if let Some(branch) = branch {
-        let (path, _) = git::resolve_worktree_branch(branch, None).with_context(|| {
-            format!("No worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?")
-        })?;
+        let (path, _) = git::resolve_worktree_branch(branch, None)?;
         println!("{}", path.display());
         return Ok(());
     }

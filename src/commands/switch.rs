@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use crate::{display, git};
 
@@ -26,9 +26,7 @@ pub fn run(branch: Option<&str>) -> Result<()> {
 }
 
 fn switch_to(branch: &str) -> Result<()> {
-    let (path, actual_branch) = git::resolve_worktree_branch(branch, None).with_context(|| {
-        format!("No worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?")
-    })?;
+    let (path, actual_branch) = git::resolve_worktree_branch(branch, None)?;
 
     display::print_ok(&format!(
         "Found '{actual_branch}' at {}",

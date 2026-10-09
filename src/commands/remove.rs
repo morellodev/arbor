@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 
 use crate::{display, git};
 
@@ -47,9 +47,7 @@ fn resolve_dot() -> Result<(PathBuf, Option<String>)> {
 }
 
 fn resolve_branch(branch: &str) -> Result<(PathBuf, Option<String>)> {
-    let (path, actual) = git::resolve_worktree_branch(branch, None).with_context(|| {
-        format!("No worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?")
-    })?;
+    let (path, actual) = git::resolve_worktree_branch(branch, None)?;
     Ok((path, Some(actual)))
 }
 

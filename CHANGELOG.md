@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.1](https://github.com/morellodev/arbor/compare/v0.4.0...v0.4.1) - 2026-10-09
+
+### Fixed
+
+- guard the macOS bash login line instead of guessing whether it sources bashrc
+- keep queued zsh completions intact and detect bashrc sourcing precisely
+- load bash integration in both login and non-login shells on macOS
+- align picker columns around missing worktrees and count them in summaries
+- find existing shell setups and defer zsh compinit to the first prompt
+- keep a finished clone when its worktree folder is taken
+- use a rebasing worktree's branch in every command
+- read worktree lists NUL-separated so paths with newlines parse
+- show plain picker text, aligned wide branch names and ~ for a symlinked HOME
+- read config.toml only in commands that use it and reject ~user paths
+- install shell integration where each shell reads it and load cleanly
+- resolve add branches from any remote and validate them first
+- list and fetch every repo with --all and flag missing worktrees
+- let clone recover from failures and remotes without a default branch
+- exit with an error when fetch --all, clean or rm -d partly fail
+- find worktrees by branch during a rebase or bisect
+- keep clean and rm from discarding work in progress
+
+### Other
+
+- simplify release workflows
+- align release pipeline with release-plz docs
+
 ## [0.4.0](https://github.com/morellodev/arbor/compare/v0.3.4...v0.4.0) - 2026-10-09
 
 ### Fixed

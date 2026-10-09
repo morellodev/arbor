@@ -54,6 +54,10 @@ cargo clippy --tests -- -D warnings # Lint (warnings treated as errors)
 
 Releases are automated via [release-plz](https://release-plz.ieni.dev/). On each push to `main`, the `prepare-release.yml` workflow opens/updates a release PR with version bump and changelog. Merging that PR tags and triggers `release.yml`, which builds cross-platform binaries, creates a GitHub Release, and updates the Homebrew tap (`morellodev/homebrew-tap`).
 
+## README intro video
+
+The README video is rendered from the private `morellodev/arbor-media` repo. It copies arbor's real output, so re-render it when user-facing messages change. READMEs only play GitHub upload links, so after re-uploading, update the `user-attachments` URL in README.md.
+
 ## Maintaining this file
 
 Keep CLAUDE.md in sync as the codebase evolves. When adding commands, changing architecture, or updating conventions, update the relevant sections here.

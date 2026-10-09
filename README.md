@@ -6,7 +6,7 @@
 
 A CLI for managing git worktrees. It keeps all your worktrees under `~/.arbor/worktrees` so you can switch between branches without stashing or losing context.
 
-![demo](demo.gif)
+https://github.com/user-attachments/assets/450e1334-e652-4508-82b8-b2901d51af64
 
 ## Why arbor?
 

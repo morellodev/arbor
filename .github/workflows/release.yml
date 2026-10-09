@@ -71,8 +71,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" arbor-*.tar.gz arbor-*.zip --clobber
+        run: gh release upload "$GITHUB_REF_NAME" arbor-*.tar.gz arbor-*.zip --clobber
 
   homebrew:
     name: Update Homebrew tap

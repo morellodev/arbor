@@ -6,7 +6,7 @@ git_only = true
 git_tag_name = "v{{ version }}"
 # Use conventional commits to determine version bumps and generate changelog
 changelog_update = true
-# Only open release PRs for user-facing changes
+# Only open release PRs for changes that affect the shipped binary
 release_commits = "^(feat|fix|refactor|perf)[(:!]"
 # Only release when a release PR (branch prefix `release-plz-`) is merged
 release_always = false

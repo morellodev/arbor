@@ -4,18 +4,21 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v7
+      - &checkout
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - run: rustup toolchain install
+      - &install-rust
+        run: rustup toolchain install
       # Tags and releases created with the default GITHUB_TOKEN don't trigger release.yml.
       - uses: actions/create-github-app-token@v3
         id: app-token
@@ -33,17 +36,12 @@ jobs:
   release-pr:
     name: Release PR
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     concurrency:
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - run: rustup toolchain install
+      - *checkout
+      - *install-rust
       # A PR opened with the default GITHUB_TOKEN doesn't trigger CI.
       - uses: actions/create-github-app-token@v3
         id: app-token

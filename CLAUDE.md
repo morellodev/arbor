@@ -48,7 +48,7 @@ cargo clippy --tests -- -D warnings # Lint (warnings treated as errors)
 - Error handling uses `anyhow::Result` throughout.
 - Only add comments where the logic isn't self-evident. Do not add comments that restate what the code does.
 - Rust edition 2024.
-- Commit messages follow [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `ci:`, `docs:`, `refactor:`, `test:`. Use `feat!:` or a `BREAKING CHANGE:` footer for breaking changes. `feat:`, `fix:`, `refactor:` and `perf:` trigger a release (`release_commits` in `release-plz.toml`) — use `ci:` for CI/workflow changes and `chore:` for other non-user-facing changes.
+- Commit messages follow [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `ci:`, `docs:`, `refactor:`, `test:`. Use `feat!:` or a `BREAKING CHANGE:` footer for breaking changes. Only the types matched by `release_commits` in `release-plz.toml` trigger a release — use `ci:` for CI/workflow changes and `chore:` for other non-user-facing changes.
 
 ## Releasing
 

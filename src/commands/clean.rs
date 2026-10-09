@@ -1,5 +1,5 @@
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
 use dialoguer::MultiSelect;
@@ -101,22 +101,33 @@ pub fn run(delete_branch: bool) -> Result<()> {
             return Ok(());
         }
     };
+    let selected: Vec<&Path> = selections
+        .iter()
+        .map(|&idx| worktrees[idx].path.as_path())
+        .collect();
+    let cwd_worktree = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| display::innermost_containing(&cwd, selected.iter().copied()))
+        .map(|idx| selected[idx]);
+
+    // Leave the cwd before deleting it, or every later git call in this process fails.
+    let toplevel = match cwd_worktree {
+        Some(path) => display::escape_dir_if_cwd_inside(path)?,
+        None => None,
+    };
+    if let Some(dir) = &toplevel {
+        std::env::set_current_dir(dir)?;
+    }
+
     let removed = remove_worktrees(&worktrees, &selections, delete_branch)?;
 
-    if let Some(toplevel) = escape_dir_if_removed(&removed)? {
+    if let (Some(toplevel), Some(path)) = (toplevel, cwd_worktree)
+        && removed.iter().any(|p| p == path)
+    {
         println!("{}", toplevel.display());
     }
 
     Ok(())
-}
-
-fn escape_dir_if_removed(removed: &[PathBuf]) -> Result<Option<PathBuf>> {
-    for path in removed {
-        if let Some(toplevel) = display::escape_dir_if_cwd_inside(path)? {
-            return Ok(Some(toplevel));
-        }
-    }
-    Ok(None)
 }
 
 #[cfg(test)]

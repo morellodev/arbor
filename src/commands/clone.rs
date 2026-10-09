@@ -29,9 +29,14 @@ pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Res
     display::print_note("Fetching remote branches...");
     git::fetch_origin(&dest)?;
 
+    let default_branch = git::head_branch(&dest).ok();
+    if let Some(branch) = &default_branch {
+        git::reset_bare_clone_branches(&dest, branch)?;
+    }
+
     display::print_ok(&format!("Cloned to {}", display::shorten_path(&dest)));
 
-    if !no_worktree && let Ok(default_branch) = git::head_branch(&dest) {
+    if !no_worktree && let Some(default_branch) = default_branch {
         let wt_path = match hooks::load_worktree_dir_from_git(&dest)? {
             Some(raw) => hooks::resolve_worktree_dir(&raw, &dest)?
                 .join(git::sanitize_branch(&default_branch)),
@@ -93,6 +98,7 @@ fn expand_shorthand(input: &str) -> String {
 ///   git@github.com:user/repo.git    → repo
 ///   https://github.com/user/repo    → repo
 fn repo_name_from_url(url: &str) -> Result<String> {
+    let url = url.trim_end_matches('/');
     let segment = if url.contains('/') {
         url.rsplit('/').next()
     } else {
@@ -116,6 +122,12 @@ mod tests {
     #[test]
     fn https_url_without_git_suffix() {
         let name = repo_name_from_url("https://github.com/user/repo").unwrap();
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn https_url_with_trailing_slash() {
+        let name = repo_name_from_url("https://github.com/user/repo/").unwrap();
         assert_eq!(name, "repo");
     }
 

@@ -168,3 +168,26 @@ fn list_summary_pluralizes_worktree_count() {
         "single worktree should use singular noun, got: {stdout}"
     );
 }
+
+#[test]
+fn list_marks_nested_worktree_as_current() {
+    let env = TestEnv::new();
+    common::commit_arbor_toml(&env, "worktree_dir = \".worktrees\"\n");
+    let wt_path = env.add_worktree("feat");
+
+    let output = env
+        .arbor_in(Path::new(&wt_path), &["ls", "--color", "never"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let current = stdout
+        .lines()
+        .find(|line| line.trim_start().starts_with('*'))
+        .unwrap_or_else(|| panic!("no current marker, got: {stdout}"));
+    assert!(
+        current.contains("feat"),
+        "nested worktree should be marked current, got: {current}"
+    );
+}

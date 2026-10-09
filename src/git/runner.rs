@@ -1,5 +1,6 @@
+use std::io::Write;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
 
@@ -24,6 +25,33 @@ pub(super) fn run_git_output(args: &[&str], cwd: Option<&Path>) -> Result<std::p
     }
 
     Ok(output)
+}
+
+pub(super) fn run_git_with_input(args: &[&str], cwd: Option<&Path>, input: &str) -> Result<()> {
+    let mut cmd = Command::new("git");
+    cmd.args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let mut child = cmd
+        .spawn()
+        .with_context(|| format!("Failed to run: git {}", args.join(" ")))?;
+    child
+        .stdin
+        .take()
+        .context("Failed to open git stdin")?
+        .write_all(input.as_bytes())?;
+    let output = child.wait_with_output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Git {} failed: {}", args.join(" "), stderr.trim());
+    }
+
+    Ok(())
 }
 
 pub(super) fn run_git_inherited(args: &[&str], cwd: Option<&Path>) -> Result<()> {

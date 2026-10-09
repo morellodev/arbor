@@ -1,6 +1,6 @@
 use std::fs;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
 use crate::{display, git, hooks};
@@ -16,12 +16,39 @@ pub fn run(config: &Config, branch: &str, base: Option<&str>, no_hooks: bool) ->
     .to_string();
     let wt_path = resolve_wt_path(config, &repo_name, branch, &repo_root)?;
 
-    if wt_path.exists() {
+    let worktrees = git::parse_worktree_list(&git::worktree_list_porcelain(None)?);
+    let canonical_wt_path = fs::canonicalize(&wt_path).ok();
+    let at_wt_path = worktrees.iter().find(|wt| {
+        canonical_wt_path.is_some() && fs::canonicalize(&wt.path).ok() == canonical_wt_path
+    });
+    let with_branch = worktrees
+        .iter()
+        .find(|wt| !wt.bare && wt.branch.as_deref() == Some(branch) && wt.path.exists());
+
+    // A worktree at the expected path with no branch is mid-rebase/bisect or detached: still ours.
+    let existing = match (with_branch, at_wt_path) {
+        (Some(wt), Some(at)) if wt.path == at.path => Some(wt_path.clone()),
+        (Some(wt), _) => Some(wt.path.clone()),
+        (None, Some(at)) => match &at.branch {
+            None => Some(wt_path.clone()),
+            Some(other) => bail!(
+                "{} is already the worktree for '{other}'",
+                display::shorten_path(&wt_path)
+            ),
+        },
+        (None, None) if wt_path.exists() => bail!(
+            "{} already exists and is not a worktree",
+            display::shorten_path(&wt_path)
+        ),
+        (None, None) => None,
+    };
+
+    if let Some(existing) = existing {
         display::print_note(&format!(
             "Already exists at {}",
-            display::shorten_path(&wt_path)
+            display::shorten_path(&existing)
         ));
-        display::print_path_hint(&wt_path);
+        display::print_path_hint(&existing);
         return Ok(());
     }
 
@@ -80,7 +107,12 @@ fn resolve_wt_path(
     branch: &str,
     repo_root: &std::path::Path,
 ) -> Result<std::path::PathBuf> {
-    let local_override = hooks::load_worktree_dir_from_path(repo_root)?
+    let raw_override = if git::is_bare_repository(repo_root) {
+        hooks::load_worktree_dir_from_git(repo_root)?
+    } else {
+        hooks::load_worktree_dir_from_path(repo_root)?
+    };
+    let local_override = raw_override
         .map(|r| hooks::resolve_worktree_dir(&r, repo_root))
         .transpose()?;
 

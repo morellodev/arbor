@@ -164,3 +164,48 @@ fn init_inject_already_configured() {
     let count = zshrc.matches("arbor init zsh").count();
     assert_eq!(count, 1, "should not duplicate the line, got: {count}");
 }
+
+#[test]
+#[cfg(not(windows))]
+fn init_inject_detects_eval_without_shell_arg() {
+    let env = TestEnv::new();
+    let zshrc_path = env.home.path().join(".zshrc");
+    fs::write(&zshrc_path, "eval \"$(arbor init)\"\n").unwrap();
+
+    let output = env.arbor(&["init", "zsh", "--inject"]).output().unwrap();
+    assert!(output.status.success());
+
+    let zshrc = fs::read_to_string(&zshrc_path).unwrap();
+    assert_eq!(
+        zshrc.matches("arbor init").count(),
+        1,
+        "should not add a second line, got: {zshrc}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn init_bash_completion_keeps_flags_for_branch_commands() {
+    let env = TestEnv::new();
+    let script = env.arbor(&["init", "bash"]).output().unwrap();
+    let script_path = env.home.path().join("arbor.bash");
+    fs::write(&script_path, &script.stdout).unwrap();
+
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(
+            r#"source "$1"; COMP_WORDS=(arbor add --no); COMP_CWORD=2; _arbor_branches arbor --no add; echo "${COMPREPLY[*]}""#,
+        )
+        .arg("bash")
+        .arg(&script_path)
+        .current_dir(env.repo.path())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--no-hooks"),
+        "flag completion should survive branch completion, got: {stdout} / {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

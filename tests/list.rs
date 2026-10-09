@@ -338,3 +338,16 @@ fn list_marks_worktrees_whose_directory_is_gone() {
         .unwrap();
     assert_eq!(entry["missing"], true);
 }
+
+#[test]
+fn list_shortens_paths_under_home() {
+    let env = TestEnv::new();
+    env.add_worktree("feat");
+
+    let output = env.arbor(&["ls"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("~/.arbor/worktrees/"),
+        "worktree paths under HOME should start with ~, got: {stdout}"
+    );
+}

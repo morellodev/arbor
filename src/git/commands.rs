@@ -47,9 +47,66 @@ pub fn local_branch_exists(branch: &str, cwd: Option<&Path>) -> Result<bool> {
     Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], cwd).is_ok())
 }
 
-pub fn remote_branch_exists(branch: &str, cwd: Option<&Path>) -> Result<bool> {
-    let refspec = format!("refs/remotes/origin/{branch}");
-    Ok(run_git(&["show-ref", "--verify", "--quiet", &refspec], cwd).is_ok())
+pub fn ensure_valid_branch_name(branch: &str) -> Result<()> {
+    run_git(&["check-ref-format", "--branch", branch], None)
+        .map(|_| ())
+        .map_err(|_| anyhow::anyhow!("'{branch}' is not a valid branch name"))
+}
+
+fn remote_names(cwd: Option<&Path>) -> Result<Vec<String>> {
+    Ok(run_git(&["remote"], cwd)?
+        .lines()
+        .map(String::from)
+        .collect())
+}
+
+fn remote_ref_exists(remote: &str, branch: &str, cwd: Option<&Path>) -> bool {
+    let refspec = format!("refs/remotes/{remote}/{branch}");
+    run_git(&["show-ref", "--verify", "--quiet", &refspec], cwd).is_ok()
+}
+
+/// Remotes that have `branch`, with `origin` first.
+pub fn remotes_with_branch(branch: &str, cwd: Option<&Path>) -> Result<Vec<String>> {
+    let mut remotes: Vec<String> = remote_names(cwd)?
+        .into_iter()
+        .filter(|remote| remote_ref_exists(remote, branch, cwd))
+        .collect();
+    remotes.sort_by_key(|remote| remote != "origin");
+    Ok(remotes)
+}
+
+/// Splits `origin/feat` into `("origin", "feat")` when that remote branch exists.
+pub fn split_remote_branch(name: &str, cwd: Option<&Path>) -> Result<Option<(String, String)>> {
+    Ok(remote_names(cwd)?.into_iter().find_map(|remote| {
+        let branch = name.strip_prefix(remote.as_str())?.strip_prefix('/')?;
+        let branch = branch.to_string();
+        remote_ref_exists(&remote, &branch, cwd).then_some((remote, branch))
+    }))
+}
+
+pub fn branch_upstream(branch: &str, cwd: Option<&Path>) -> Option<String> {
+    run_git(
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            &format!("{branch}@{{upstream}}"),
+        ],
+        cwd,
+    )
+    .ok()
+}
+
+/// The ceiling keeps git from answering for an enclosing repo (e.g. a dotfiles HOME)
+/// when `path` itself isn't a repo or worktree.
+pub fn common_dir(path: &Path) -> Result<PathBuf> {
+    let ceiling = path.parent().unwrap_or(path);
+    let output = run_git_output_with_env(
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        Some(path),
+        &[("GIT_CEILING_DIRECTORIES", ceiling.as_os_str())],
+    )?;
+    let dir = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(fs::canonicalize(&dir).unwrap_or_else(|_| PathBuf::from(dir)))
 }
 
 pub fn worktree_add_existing(path: &Path, branch: &str, cwd: Option<&Path>) -> Result<()> {
@@ -64,7 +121,8 @@ pub fn worktree_add_new_branch(
     cwd: Option<&Path>,
 ) -> Result<()> {
     let path_str = path.to_string_lossy();
-    let mut args = vec!["worktree", "add", "-b", branch, &path_str];
+    // Without --no-track, `--base origin/main` would make the new branch track main.
+    let mut args = vec!["worktree", "add", "--no-track", "-b", branch, &path_str];
     if let Some(b) = base {
         args.push(b);
     }
@@ -72,8 +130,8 @@ pub fn worktree_add_new_branch(
     Ok(())
 }
 
-pub fn create_tracking_branch(branch: &str, cwd: Option<&Path>) -> Result<()> {
-    let remote_ref = format!("origin/{branch}");
+pub fn create_tracking_branch(branch: &str, remote: &str, cwd: Option<&Path>) -> Result<()> {
+    let remote_ref = format!("{remote}/{branch}");
     run_git(&["branch", "--track", branch, &remote_ref], cwd)?;
     Ok(())
 }
@@ -135,7 +193,7 @@ pub fn reset_bare_clone_branches(repo_path: &Path, default_branch: Option<&str>)
     }
 
     if let Some(default_branch) = default_branch
-        && remote_branch_exists(default_branch, Some(repo_path))?
+        && remote_ref_exists("origin", default_branch, Some(repo_path))
     {
         let upstream = format!("origin/{default_branch}");
         run_git(

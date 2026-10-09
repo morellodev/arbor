@@ -94,7 +94,7 @@ arbor init --inject
 
 | Command | Alias | Description |
 | --- | --- | --- |
-| `arbor add <branch> [-b <base>] [--no-hooks]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. `-b` / `--base` starts the new branch from a specific ref (branch, tag, or commit). `--no-hooks` skips post-create hooks. |
+| `arbor add <branch> [-b <base>] [--no-hooks]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch (`origin/<branch>` names one remote), or creates a new one. `-b` / `--base` starts the new branch from a specific ref (branch, tag, or commit). `--no-hooks` skips post-create hooks. |
 | `arbor switch [branch]` | `cd` | Switch to an existing worktree. With no argument, shows an interactive fuzzy selector. |
 | `arbor list [--all] [--json] [--short]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. `--short` hides the path column. |
 | `arbor remove [branch] [-f] [-d]` | `rm` | Remove a worktree. With no argument, shows an interactive fuzzy selector. Use `.` to remove the current worktree. `-f` forces removal of dirty or mid-rebase worktrees. `-d` also deletes the local branch if it is merged. |

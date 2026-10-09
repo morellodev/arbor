@@ -263,3 +263,112 @@ fn list_escapes_control_characters_in_paths() {
         "the path should be shown escaped, got: {stdout}"
     );
 }
+
+fn bare_clone_without_worktrees(env: &TestEnv, name: &str) {
+    let home = env.home.path();
+    let dest = home.join(format!(".arbor/repos/{name}.git"));
+    git_cmd(
+        home,
+        &[
+            "clone",
+            "--bare",
+            &env.repo.path().to_string_lossy(),
+            &dest.to_string_lossy(),
+        ],
+        home,
+    );
+}
+
+#[test]
+fn list_all_includes_repos_without_worktrees() {
+    let env = TestEnv::new();
+    bare_clone_without_worktrees(&env, "lonely");
+
+    let output = env.arbor(&["ls", "--all", "--json"]).output().unwrap();
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["lonely"], serde_json::json!([]));
+}
+
+#[test]
+fn fetch_all_includes_repos_without_worktrees() {
+    let env = TestEnv::new();
+    bare_clone_without_worktrees(&env, "lonely");
+
+    let output = env.arbor(&["fetch", "--all"]).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        stderr.contains("Fetched 1 repository"),
+        "should fetch the repo, got: {stderr}"
+    );
+}
+
+#[test]
+fn list_all_prints_the_whole_listing_to_stdout() {
+    let env = TestEnv::new();
+    bare_clone_without_worktrees(&env, "lonely");
+
+    let output = env.arbor(&["ls", "--all"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("# lonely") && stdout.contains("Total (1 repo)"),
+        "repo headings and the total belong with the tables, got: {stdout}"
+    );
+}
+
+#[test]
+fn list_marks_worktrees_whose_directory_is_gone() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("gone");
+    fs::remove_dir_all(&wt_path).unwrap();
+
+    let output = env.arbor(&["ls"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let row = stdout.lines().find(|l| l.contains("gone")).unwrap();
+    assert!(row.contains("missing"), "got: {stdout}");
+    assert!(
+        stdout.contains("1 missing"),
+        "the summary should count it, got: {stdout}"
+    );
+
+    let json = env.arbor(&["ls", "--json"]).output().unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    let entry = json
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|wt| wt["branch"] == "gone")
+        .unwrap();
+    assert_eq!(entry["missing"], true);
+}
+
+#[test]
+fn list_shortens_paths_under_home() {
+    let env = TestEnv::new();
+    env.add_worktree("feat");
+
+    let output = env.arbor(&["ls"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("~/.arbor/worktrees/"),
+        "worktree paths under HOME should start with ~, got: {stdout}"
+    );
+}
+
+#[test]
+fn list_names_the_branch_of_a_worktree_mid_rebase() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("rebasing");
+    common::start_rebase(Path::new(&wt_path), env.home.path());
+
+    let output = env.arbor(&["ls", "--json"]).output().unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(
+        json.as_array()
+            .unwrap()
+            .iter()
+            .any(|wt| wt["branch"] == "rebasing"),
+        "got: {json}"
+    );
+}

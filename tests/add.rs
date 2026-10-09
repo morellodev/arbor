@@ -251,3 +251,227 @@ fn add_resolves_relative_config_worktree_dir_against_arbor_dir() {
         stdout_path(&output)
     );
 }
+
+/// Clones the test repo (which has a `remfeat` branch) under the given remote name.
+fn clone_with_remote(env: &TestEnv, remote: &str) -> std::path::PathBuf {
+    let home = env.home.path();
+    git_cmd(env.repo.path(), &["branch", "remfeat"], home);
+    git_cmd(
+        env.repo.path(),
+        &["commit", "--allow-empty", "-m", "on main only"],
+        home,
+    );
+    let dest = home.join(format!("clone-{remote}"));
+    git_cmd(
+        home,
+        &[
+            "clone",
+            "-o",
+            remote,
+            &env.repo.path().to_string_lossy(),
+            &dest.to_string_lossy(),
+        ],
+        home,
+    );
+    dest
+}
+
+fn upstream_of(dir: &Path, branch: &str, env: &TestEnv) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args([
+            "rev-parse",
+            "--abbrev-ref",
+            &format!("{branch}@{{upstream}}"),
+        ])
+        .current_dir(dir)
+        .env("HOME", env.home.path())
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", env.home.path().join(".gitconfig"))
+        .output()
+        .unwrap();
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[test]
+fn add_tracks_a_branch_from_a_remote_not_named_origin() {
+    let env = TestEnv::new();
+    let clone = clone_with_remote(&env, "upstream");
+
+    let output = env.arbor_in(&clone, &["add", "remfeat"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        upstream_of(&clone, "remfeat", &env).as_deref(),
+        Some("upstream/remfeat")
+    );
+}
+
+#[test]
+fn add_with_remote_prefix_tracks_the_remote_branch() {
+    let env = TestEnv::new();
+    let clone = clone_with_remote(&env, "origin");
+
+    let output = env
+        .arbor_in(&clone, &["add", "origin/remfeat"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        upstream_of(&clone, "remfeat", &env).as_deref(),
+        Some("origin/remfeat")
+    );
+    let shadow = git_stdout(
+        &clone,
+        &["for-each-ref", "refs/heads/origin/"],
+        env.home.path(),
+    );
+    assert_eq!(shadow, "", "no local branch may shadow the remote ref");
+}
+
+#[test]
+fn add_with_remote_base_does_not_track_the_base() {
+    let env = TestEnv::new();
+    let clone = clone_with_remote(&env, "origin");
+
+    let output = env
+        .arbor_in(&clone, &["add", "newfeat", "--base", "origin/main"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(upstream_of(&clone, "newfeat", &env), None);
+}
+
+#[test]
+fn add_rejects_invalid_branch_name_before_creating_dirs() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["add", "."]).output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("not a valid branch name"), "got: {stderr}");
+    assert!(
+        !env.home.path().join(".arbor/worktrees").exists(),
+        "nothing should be created for an invalid name"
+    );
+}
+
+#[test]
+fn add_explains_a_collision_with_a_same_named_repo() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    let mut repos = Vec::new();
+    for parent in ["one", "two"] {
+        let repo = home.join(parent).join("app");
+        std::fs::create_dir_all(&repo).unwrap();
+        git_cmd(&repo, &["init"], home);
+        git_cmd(&repo, &["commit", "--allow-empty", "-m", "init"], home);
+        repos.push(repo);
+    }
+
+    assert!(
+        env.arbor_in(&repos[0], &["add", "feat"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    let output = env.arbor_in(&repos[1], &["add", "feat"]).output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("another repository named 'app'"),
+        "got: {stderr}"
+    );
+}
+
+#[test]
+fn add_does_not_blame_an_enclosing_repo_for_a_stale_dir() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    git_cmd(home, &["init"], home);
+    let repo_name = env.repo.path().file_name().unwrap().to_string_lossy();
+    std::fs::create_dir_all(home.join(format!(".arbor/worktrees/{repo_name}/feat"))).unwrap();
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("already exists and is not a worktree"),
+        "got: {stderr}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn add_handles_a_repo_path_containing_a_newline() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    let repo = home.join("nl\nrepo");
+    std::fs::create_dir_all(&repo).unwrap();
+    git_cmd(&repo, &["init"], home);
+    git_cmd(&repo, &["commit", "--allow-empty", "-m", "init"], home);
+
+    let output = env.arbor_in(&repo, &["add", "feat"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout_path(&output).ends_with("worktrees/nl\nrepo/feat"),
+        "the repo name must keep its newline, got: {:?}",
+        stdout_path(&output)
+    );
+}
+
+#[test]
+fn add_with_remote_prefix_rejects_an_unrelated_local_branch() {
+    let env = TestEnv::new();
+    let clone = clone_with_remote(&env, "upstream");
+    git_cmd(
+        &clone,
+        &["branch", "--no-track", "remfeat", "main"],
+        env.home.path(),
+    );
+
+    let output = env
+        .arbor_in(&clone, &["add", "upstream/remfeat"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("doesn't track upstream/remfeat"),
+        "got: {stderr}"
+    );
+}
+
+#[test]
+fn add_with_remote_prefix_uses_a_local_branch_tracking_it() {
+    let env = TestEnv::new();
+    let clone = clone_with_remote(&env, "upstream");
+    git_cmd(
+        &clone,
+        &["branch", "--track", "remfeat", "upstream/remfeat"],
+        env.home.path(),
+    );
+
+    let output = env
+        .arbor_in(&clone, &["add", "upstream/remfeat"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

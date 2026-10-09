@@ -39,13 +39,40 @@ impl Shell {
     }
 }
 
+fn env_dir(name: &str) -> Option<PathBuf> {
+    std::env::var_os(name)
+        .map(PathBuf::from)
+        .filter(|dir| dir.is_absolute())
+}
+
 fn config_file_path(shell: &Shell) -> Result<PathBuf> {
     let home = std::env::home_dir().context("Could not determine home directory")?;
     Ok(match shell {
+        Shell::Bash if cfg!(target_os = "macos") => bash_login_file(&home),
         Shell::Bash => home.join(".bashrc"),
-        Shell::Zsh => home.join(".zshrc"),
-        Shell::Fish => home.join(".config/fish/config.fish"),
+        Shell::Zsh => env_dir("ZDOTDIR").unwrap_or(home).join(".zshrc"),
+        Shell::Fish => env_dir("XDG_CONFIG_HOME")
+            .unwrap_or_else(|| home.join(".config"))
+            .join("fish/config.fish"),
     })
+}
+
+/// macOS terminals start login shells, which skip ~/.bashrc and read only the first
+/// of these that exists; creating ~/.bash_profile would hide an existing ~/.profile.
+fn bash_login_file(home: &Path) -> PathBuf {
+    [".bash_profile", ".bash_login", ".profile"]
+        .into_iter()
+        .map(|name| home.join(name))
+        .find(|path| path.exists())
+        .unwrap_or_else(|| home.join(".bash_profile"))
+}
+
+fn read_config(path: &Path) -> Result<Vec<u8>> {
+    match fs::read(path) {
+        Ok(content) => Ok(content),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(e).context(format!("Failed to read {}", path.display())),
+    }
 }
 
 fn eval_line(shell: &Shell) -> &'static str {
@@ -57,16 +84,33 @@ fn eval_line(shell: &Shell) -> &'static str {
 }
 
 fn already_configured(path: &Path) -> Result<bool> {
-    let content = match fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(e) => return Err(e).context(format!("Failed to read {}", path.display())),
-    };
+    let content = read_config(path)?;
     // The shell argument is optional (`eval "$(arbor init)"`), and the file is
-    // already specific to this shell, so any `arbor init` line counts.
-    Ok(content
-        .lines()
-        .any(|line| !line.trim_start().starts_with('#') && line.contains("arbor init")))
+    // already specific to this shell, so any line loading `arbor init` counts.
+    Ok(String::from_utf8_lossy(&content).lines().any(|line| {
+        let line = line.trim_start();
+        !line.starts_with('#')
+            && line.contains("arbor init")
+            && (line.contains("eval") || line.contains("source") || line.starts_with(". "))
+    }))
+}
+
+/// macOS bash setups from before arbor targeted the login file live in ~/.bashrc,
+/// which ~/.bash_profile usually sources.
+fn configured_file(shell: &Shell, config_path: &Path) -> Result<Option<PathBuf>> {
+    let mut candidates = vec![config_path.to_path_buf()];
+    if matches!(shell, Shell::Bash)
+        && cfg!(target_os = "macos")
+        && let Some(home) = std::env::home_dir()
+    {
+        candidates.push(home.join(".bashrc"));
+    }
+    for path in candidates {
+        if already_configured(&path)? {
+            return Ok(Some(path));
+        }
+    }
+    Ok(None)
 }
 
 fn inject_into_config(path: &Path, line: &str) -> Result<()> {
@@ -75,19 +119,11 @@ fn inject_into_config(path: &Path, line: &str) -> Result<()> {
             .with_context(|| format!("Failed to create directory {}", parent.display()))?;
     }
 
-    let mut content = match fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(e) => return Err(e).context(format!("Failed to read {}", path.display())),
-    };
-
-    if !content.is_empty() && !content.ends_with('\n') {
-        content.push('\n');
+    let mut content = read_config(path)?;
+    if !content.is_empty() && !content.ends_with(b"\n") {
+        content.push(b'\n');
     }
-
-    content.push_str("# arbor\n");
-    content.push_str(line);
-    content.push('\n');
+    content.extend_from_slice(format!("# arbor\n{line}\n").as_bytes());
 
     fs::write(path, content).with_context(|| format!("Failed to write {}", path.display()))
 }
@@ -111,9 +147,9 @@ pub fn run(shell: Option<&str>, inject: bool) -> Result<()> {
     let line = eval_line(&shell);
     let short_path = display::shorten_path(&config_path);
 
-    if already_configured(&config_path)? {
+    if let Some(found) = configured_file(&shell, &config_path)? {
         display::print_ok("Shell integration is already configured");
-        display::print_hint(&format!("Found in {short_path}"));
+        display::print_hint(&format!("Found in {}", display::shorten_path(&found)));
         return Ok(());
     }
 
@@ -162,6 +198,7 @@ fn print_script(shell: &Shell) -> Result<()> {
         }
         Shell::Zsh => {
             println!("{SHELL_WRAPPER}");
+            print!("{ZSH_COMPINIT}");
             print!("{}", generate_completions(clap_complete::Shell::Zsh));
             print!("{ZSH_BRANCH_COMPLETIONS}");
         }
@@ -186,9 +223,12 @@ const SHELL_WRAPPER: &str = r#"arbor() {
   done
   case "$subcommand" in
     add|switch|cd|clone|remove|rm|clean)
-      local dir
-      dir=$(command arbor "$@") || return $?
-      if [ -n "$dir" ]; then cd "$dir"; fi
+      # On failure, a path on stdout still means the cwd was deleted.
+      local dir rc
+      dir=$(command arbor "$@")
+      rc=$?
+      if [ -n "$dir" ] && [ -d "$dir" ]; then cd "$dir" || return; fi
+      return $rc
       ;;
     *)
       command arbor "$@"
@@ -216,14 +256,38 @@ const FISH_WRAPPER: &str = r#"function arbor --wraps arbor
   switch "$subcommand"
     case add switch cd clone remove rm clean
       set -l dir (command arbor $argv)
-      or return $status
-      if test -n "$dir"
+      set -l rc $status
+      if test -n "$dir"; and test -d "$dir"
         cd $dir
       end
+      return $rc
     case '*'
       command arbor $argv
   end
 end"#;
+
+// Without compdef yet, registrations are queued and replayed at the first prompt, so a
+// compinit later in .zshrc (oh-my-zsh, zinit) still runs once; a fresh zsh with no
+// compinit at all (macOS has no default ~/.zshrc) gets one then.
+const ZSH_COMPINIT: &str = r#"
+if (( ! $+functions[compdef] )); then
+  typeset -ga _arbor_compdefs
+  compdef() { _arbor_compdefs+=("$*") }
+  _arbor_compinit() {
+    add-zsh-hook -d precmd _arbor_compinit
+    if [[ $functions[compdef] == *_arbor_compdefs* ]]; then
+      unfunction compdef
+      autoload -Uz compinit && compinit -i
+    fi
+    local args
+    for args in $_arbor_compdefs; do compdef ${=args}; done
+    unset _arbor_compdefs
+    unfunction _arbor_compinit
+  }
+  autoload -Uz add-zsh-hook
+  add-zsh-hook precmd _arbor_compinit
+fi
+"#;
 
 const BASH_BRANCH_COMPLETIONS: &str = r#"
 _arbor_branches() {
@@ -245,7 +309,7 @@ _arbor_branches() {
   case "$subcommand" in
     add)
       local branches
-      branches=$(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u)
+      branches=$(git for-each-ref --format='%(refname)' refs/heads/ refs/remotes/ 2>/dev/null | sed -E 's#^refs/(heads|remotes/[^/]+)/##' | grep -vx HEAD | sort -u)
       COMPREPLY=($(compgen -W "$branches" -- "${COMP_WORDS[COMP_CWORD]}"))
       ;;
     switch|cd|rm|remove|dir)
@@ -255,7 +319,12 @@ _arbor_branches() {
       ;;
   esac
 }
-complete -F _arbor_branches arbor
+# Same options clap registers for _arbor, so paths still complete as a fallback.
+if [[ "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -ge 4 || "${BASH_VERSINFO[0]}" -gt 4 ]]; then
+  complete -F _arbor_branches -o nosort -o bashdefault -o default arbor
+else
+  complete -F _arbor_branches -o bashdefault -o default arbor
+fi
 "#;
 
 const ZSH_BRANCH_COMPLETIONS: &str = r#"
@@ -272,7 +341,7 @@ _arbor_branches() {
   done
   case "$subcommand" in
     add)
-      local -a branches=($(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u))
+      local -a branches=($(git for-each-ref --format='%(refname)' refs/heads/ refs/remotes/ 2>/dev/null | sed -E 's#^refs/(heads|remotes/[^/]+)/##' | grep -vx HEAD | sort -u))
       _describe 'branch' branches
       ;;
     switch|cd|rm|remove|dir)
@@ -285,7 +354,7 @@ compdef _arbor_branches arbor
 "#;
 
 const FISH_BRANCH_COMPLETIONS: &str = r#"
-complete -c arbor -n '__fish_seen_subcommand_from add' -f -a '(git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/ 2>/dev/null | string replace -r "^origin/" "" | sort -u)'
+complete -c arbor -n '__fish_seen_subcommand_from add' -f -a '(git for-each-ref --format="%(refname)" refs/heads/ refs/remotes/ 2>/dev/null | string replace -r "^refs/(heads|remotes/[^/]+)/" "" | string match -v HEAD | sort -u)'
 
 complete -c arbor -n '__fish_seen_subcommand_from switch cd rm remove dir' -f -a '(git worktree list --porcelain 2>/dev/null | string match -r "^branch refs/heads/(.*)" | string replace -r "^branch refs/heads/" "")'
 "#;

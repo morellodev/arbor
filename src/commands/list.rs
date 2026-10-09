@@ -5,17 +5,12 @@ use anyhow::Result;
 
 use crate::{config::Config, display, git};
 
-pub fn run(config: &Config, all: bool, json: bool, short: bool) -> Result<()> {
-    if json {
-        if all {
-            list_all_repos_json(config)
-        } else {
-            list_repo_json(None)
-        }
-    } else if all {
-        list_all_repos(config, short)
-    } else {
-        list_repo(None, short)
+pub fn run(all: bool, json: bool, short: bool) -> Result<()> {
+    match (all, json) {
+        (true, true) => list_all_repos_json(&Config::load()?),
+        (true, false) => list_all_repos(&Config::load()?, short),
+        (false, true) => list_repo_json(None),
+        (false, false) => list_repo(None, short),
     }
 }
 
@@ -48,14 +43,13 @@ pub(crate) fn scan_repos(config: &Config) -> Result<Vec<RepoEntry>> {
         let display_name = git::strip_git_suffix(&name).to_string();
 
         match git::repo_worktree_infos(&path) {
-            Ok(worktrees) if !worktrees.is_empty() => {
+            Ok(worktrees) => {
                 repos.push(RepoEntry {
                     display_name,
                     path,
                     worktrees,
                 });
             }
-            Ok(_) => {}
             Err(e) => {
                 display::print_note(&format!("Skipping {display_name}: {e}"));
             }
@@ -94,10 +88,12 @@ fn list_all_repos(config: &Config, short: bool) -> Result<()> {
     let mut summaries = Vec::new();
 
     for repo in &repos {
-        display::print_section(&repo.display_name);
+        display::print_listing_section(&repo.display_name);
         let summary = display::summarize(&repo.worktrees);
         display::print_summary("Summary", &summary);
-        display::print_table(&repo.worktrees, !short);
+        if !repo.worktrees.is_empty() {
+            display::print_table(&repo.worktrees, !short);
+        }
         println!();
         summaries.push(summary);
     }

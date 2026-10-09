@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 
 use crate::{display, git};
 
@@ -40,16 +40,15 @@ fn resolve_dot() -> Result<(PathBuf, Option<String>)> {
     match display::innermost_containing(&cwd, worktrees.iter().map(|wt| wt.path.as_path())) {
         Some(idx) => {
             let wt = worktrees.swap_remove(idx);
-            Ok((wt.path, wt.branch))
+            let branch = git::effective_branch(&wt);
+            Ok((wt.path, branch))
         }
         None => bail!("Not inside a worktree"),
     }
 }
 
 fn resolve_branch(branch: &str) -> Result<(PathBuf, Option<String>)> {
-    let (path, actual) = git::resolve_worktree_branch(branch, None).with_context(|| {
-        format!("No worktree found for branch '{branch}'. Did you mean `arbor add {branch}`?")
-    })?;
+    let (path, actual) = git::resolve_worktree_branch(branch, None)?;
     Ok((path, Some(actual)))
 }
 
@@ -59,8 +58,17 @@ fn remove_worktree(
     force: bool,
     delete_branch: bool,
 ) -> Result<()> {
-    if !force && git::is_worktree_dirty(wt_path) {
-        bail!("Worktree has uncommitted changes. Use --force to remove anyway.");
+    if !force {
+        if git::is_worktree_dirty(wt_path) {
+            bail!("Worktree has uncommitted changes. Use --force to remove anyway.");
+        }
+        // `git worktree remove` doesn't refuse a rebase or bisect in progress.
+        if let Some(op) = git::operation_in_progress(wt_path) {
+            bail!(
+                "Worktree has a {} in progress. Use --force to remove anyway.",
+                op.operation
+            );
+        }
     }
 
     let toplevel = display::escape_dir_if_cwd_inside(wt_path)?;
@@ -72,24 +80,26 @@ fn remove_worktree(
     git::worktree_remove(wt_path, force)?;
     display::print_ok(&format!("Removed {}", display::shorten_path(wt_path)));
 
+    let mut result = Ok(());
     if delete_branch {
         if let Some(branch) = actual_branch {
-            match git::delete_branch(branch, force, toplevel.as_deref()) {
+            match git::delete_branch(branch, toplevel.as_deref()) {
                 Ok(output) => {
                     let hash = parse_was_hash(&output);
                     let suffix = hash.map_or(String::new(), |h| format!(" (was {h})"));
                     display::print_ok(&format!("Deleted branch '{branch}'{suffix}"));
                 }
-                Err(e) => display::print_error(&format!("Could not delete branch '{branch}': {e}")),
+                Err(e) => result = Err(e.context(format!("Could not delete branch '{branch}'"))),
             }
         } else {
             display::print_note("Skipped branch deletion (detached HEAD)");
         }
     }
 
+    // Printed even on failure: the worktree is gone, so the shell must still leave it.
     if let Some(toplevel) = toplevel {
         println!("{}", toplevel.display());
     }
 
-    Ok(())
+    result
 }

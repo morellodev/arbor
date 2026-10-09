@@ -7,6 +7,7 @@ use anyhow::{Result, bail};
 use colored::Colorize;
 use comfy_table::{ContentArrangement, Table, presets::NOTHING};
 use dialoguer::FuzzySelect;
+use unicode_width::UnicodeWidthStr;
 
 use crate::git::{self, Tracking, WorktreeInfo};
 
@@ -32,13 +33,17 @@ pub fn configure_color(mode: &crate::cli::ColorMode) {
     colored::control::set_override(stderr);
 }
 
-// `colored` has a single global switch, so output bound for stdout flips it to
-// the stdout setting while rendering.
-fn with_stdout_colors<T>(render: impl FnOnce() -> T) -> T {
-    colored::control::set_override(STDOUT_COLOR.load(Ordering::Relaxed));
+// `colored` has a single global switch, so output bound elsewhere than stderr flips
+// it while rendering.
+fn with_colors<T>(enabled: bool, render: impl FnOnce() -> T) -> T {
+    colored::control::set_override(enabled);
     let rendered = render();
     colored::control::set_override(STDERR_COLOR.load(Ordering::Relaxed));
     rendered
+}
+
+fn with_stdout_colors<T>(render: impl FnOnce() -> T) -> T {
+    with_colors(STDOUT_COLOR.load(Ordering::Relaxed), render)
 }
 
 pub fn cwd_is_inside(cwd: &Path, worktree_path: &Path) -> bool {
@@ -89,7 +94,8 @@ pub fn fuzzy_select_worktree(
         return Ok(None);
     }
 
-    let items = format_worktree_items(&worktrees);
+    // The fuzzy matcher searches the raw item text, color codes included.
+    let items = with_colors(false, || format_worktree_items(&worktrees));
 
     let selection = FuzzySelect::new()
         .with_prompt(prompt)
@@ -164,6 +170,11 @@ pub fn print_section(name: &str) {
     eprintln!("{}{}", "# ".bold(), sanitize(name).bold());
 }
 
+pub fn print_listing_section(name: &str) {
+    let heading = with_stdout_colors(|| format!("{}{}", "# ".bold(), sanitize(name).bold()));
+    println!("{heading}");
+}
+
 pub fn print_hint(text: &str) {
     eprintln!("  {}", sanitize(text).dimmed());
 }
@@ -182,12 +193,32 @@ pub fn print_path_hint(path: &Path) {
 }
 
 pub fn shorten_path(path: &Path) -> String {
-    if let Some(home) = std::env::home_dir()
-        && let Ok(relative) = path.strip_prefix(&home)
-    {
-        return format!("~/{}", relative.display());
+    let Some(home) = std::env::home_dir() else {
+        return path.display().to_string();
+    };
+    // git reports resolved paths, so a symlinked HOME (e.g. /tmp on macOS) only
+    // matches once canonicalized.
+    let canonical_home = home.canonicalize().ok().map(strip_verbatim);
+    let relative = std::iter::once(home.as_path())
+        .chain(canonical_home.as_deref())
+        .find_map(|home| path.strip_prefix(home).ok());
+    match relative {
+        Some(relative) if relative.as_os_str().is_empty() => "~".to_string(),
+        Some(relative) => format!("~/{}", relative.display()),
+        None => path.display().to_string(),
     }
-    path.display().to_string()
+}
+
+/// Windows `canonicalize` returns `\\?\C:\...`, which never prefix-matches the
+/// `C:/...` paths git prints.
+fn strip_verbatim(path: PathBuf) -> PathBuf {
+    if cfg!(windows)
+        && let Some(rest) = path.to_str().and_then(|p| p.strip_prefix(r"\\?\"))
+        && !rest.starts_with("UNC\\")
+    {
+        return PathBuf::from(rest);
+    }
+    path
 }
 
 fn colored_branch(entry: &WorktreeInfo) -> String {
@@ -197,8 +228,12 @@ fn colored_branch(entry: &WorktreeInfo) -> String {
     }
 }
 
+const MISSING: &str = "missing";
+
 fn colored_state(entry: &WorktreeInfo) -> String {
-    if entry.dirty {
+    if entry.missing {
+        MISSING.red().to_string()
+    } else if entry.dirty {
         "\u{2717}".yellow().to_string()
     } else {
         "\u{2713}".green().to_string()
@@ -222,14 +257,19 @@ fn colored_tracking(entry: &WorktreeInfo) -> String {
 
 fn branch_visible_len(entry: &WorktreeInfo) -> usize {
     match &entry.branch {
-        Some(name) => sanitize(name).chars().count(),
+        Some(name) => sanitize(name).width(),
         None => "(detached)".len(),
     }
+}
+
+fn state_visible_len(entry: &WorktreeInfo) -> usize {
+    if entry.missing { MISSING.len() } else { 1 }
 }
 
 pub fn format_worktree_items(entries: &[WorktreeInfo]) -> Vec<String> {
     let current = find_current_index(entries);
     let max_branch = entries.iter().map(branch_visible_len).max().unwrap_or(0);
+    let max_state = entries.iter().map(state_visible_len).max().unwrap_or(0);
 
     entries
         .iter()
@@ -242,7 +282,11 @@ pub fn format_worktree_items(entries: &[WorktreeInfo]) -> Vec<String> {
             };
             let branch = colored_branch(entry);
             let pad = max_branch - branch_visible_len(entry);
-            let state = colored_state(entry);
+            let state = format!(
+                "{}{}",
+                colored_state(entry),
+                " ".repeat(max_state - state_visible_len(entry))
+            );
             let tracking = colored_tracking(entry);
             let path = sanitize(&shorten_path(&entry.path)).dimmed().to_string();
 
@@ -256,6 +300,7 @@ pub fn format_worktree_items(entries: &[WorktreeInfo]) -> Vec<String> {
 
 pub struct WorktreeSummary {
     pub total: usize,
+    pub missing: usize,
     pub dirty: usize,
     pub ahead: usize,
     pub behind: usize,
@@ -263,12 +308,16 @@ pub struct WorktreeSummary {
 }
 
 pub fn summarize(worktrees: &[WorktreeInfo]) -> WorktreeSummary {
+    let mut missing = 0;
     let mut dirty = 0;
     let mut ahead = 0;
     let mut behind = 0;
     let mut detached = 0;
 
     for wt in worktrees {
+        if wt.missing {
+            missing += 1;
+        }
         if wt.dirty {
             dirty += 1;
         }
@@ -287,6 +336,7 @@ pub fn summarize(worktrees: &[WorktreeInfo]) -> WorktreeSummary {
 
     WorktreeSummary {
         total: worktrees.len(),
+        missing,
         dirty,
         ahead,
         behind,
@@ -301,6 +351,9 @@ pub fn plural<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
 fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     let mut parts = Vec::new();
 
+    if summary.missing > 0 {
+        parts.push(format!("{} {MISSING}", summary.missing).red().to_string());
+    }
     if summary.dirty > 0 {
         parts.push(format!("{} dirty", summary.dirty).yellow().to_string());
     }
@@ -334,23 +387,11 @@ fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     )
 }
 
-pub fn print_fetch_summary(success: usize, failed: usize) {
-    let total = success + failed;
-    let noun = plural(total, "repository", "repositories");
-    if failed > 0 {
-        note_line(&format!(
-            "Fetched {success}/{total} {noun} ({} failed)",
-            failed.to_string().red()
-        ));
-    } else {
-        print_note(&format!("Fetched {total} {noun}"));
-    }
-}
-
 pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
     let aggregate = summaries.iter().fold(
         WorktreeSummary {
             total: 0,
+            missing: 0,
             dirty: 0,
             ahead: 0,
             behind: 0,
@@ -358,6 +399,7 @@ pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
         },
         |mut acc, s| {
             acc.total += s.total;
+            acc.missing += s.missing;
             acc.dirty += s.dirty;
             acc.ahead += s.ahead;
             acc.behind += s.behind;
@@ -367,7 +409,10 @@ pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
     );
     let repos = summaries.len();
     let label = format!("Total ({repos} {})", plural(repos, "repo", "repos"));
-    eprintln!("{}", format_summary(&label, &aggregate));
+    println!(
+        "{}",
+        with_stdout_colors(|| format_summary(&label, &aggregate))
+    );
 }
 
 fn new_table() -> Table {
@@ -440,6 +485,32 @@ mod tests {
     }
 
     #[test]
+    fn worktree_items_align_wide_branch_names() {
+        colored::control::set_override(false);
+        let worktree = |branch: &str| WorktreeInfo {
+            path: PathBuf::from("/wt"),
+            branch: Some(branch.to_string()),
+            dirty: false,
+            tracking: None,
+            missing: false,
+            main: false,
+        };
+        let mut gone = worktree("gone");
+        gone.missing = true;
+        let items = format_worktree_items(&[
+            worktree("功能"),
+            worktree("🚀ship"),
+            worktree("abcdef"),
+            gone,
+        ]);
+        let state_column = |item: &str| item[..item.find('✓').unwrap()].width();
+        assert_eq!(state_column(&items[0]), state_column(&items[2]));
+        assert_eq!(state_column(&items[1]), state_column(&items[2]));
+        let path_column = |item: &str| item[..item.find("/wt").unwrap()].width();
+        assert_eq!(path_column(&items[3]), path_column(&items[2]));
+    }
+
+    #[test]
     fn plural_picks_singular_only_for_one() {
         assert_eq!(plural(0, "branch", "branches"), "branches");
         assert_eq!(plural(1, "branch", "branches"), "branch");
@@ -451,6 +522,7 @@ mod tests {
         colored::control::set_override(false);
         let summary = WorktreeSummary {
             total: 1,
+            missing: 0,
             dirty: 0,
             ahead: 0,
             behind: 0,

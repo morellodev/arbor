@@ -54,6 +54,9 @@ impl TestEnv {
         cmd.env("HOME", self.home.path());
         cmd.env("GIT_CONFIG_NOSYSTEM", "1");
         cmd.env("GIT_CONFIG_GLOBAL", self.home.path().join(".gitconfig"));
+        // `init --inject` writes under these when set, i.e. outside the test HOME.
+        cmd.env_remove("ZDOTDIR");
+        cmd.env_remove("XDG_CONFIG_HOME");
         #[cfg(windows)]
         cmd.env("USERPROFILE", self.home.path());
         cmd.args(args);
@@ -115,5 +118,20 @@ pub fn commit_arbor_toml(env: &TestEnv, content: &str) {
         &env.repo,
         &["commit", "-m", "add .arbor.toml"],
         env.home.path(),
+    );
+}
+
+/// Stops an interactive rebase right away, leaving HEAD detached and the tree clean.
+pub fn start_rebase(dir: &Path, home: &Path) {
+    let mut cmd = Command::new("git");
+    cmd.args(["rebase", "-i", "HEAD"])
+        .current_dir(dir)
+        .env("HOME", home)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", home.join(".gitconfig"))
+        .env("GIT_SEQUENCE_EDITOR", "echo break >");
+    assert!(
+        cmd.output().unwrap().status.success(),
+        "setup: rebase should stop"
     );
 }

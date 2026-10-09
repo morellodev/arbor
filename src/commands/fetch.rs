@@ -1,13 +1,13 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use crate::config::Config;
 use crate::{display, git};
 
 use super::list::scan_repos;
 
-pub fn run(config: &Config, all: bool) -> Result<()> {
+pub fn run(all: bool) -> Result<()> {
     if all {
-        return run_all(config);
+        return run_all(&Config::load()?);
     }
 
     let toplevel = git::repo_toplevel()?;
@@ -47,7 +47,11 @@ fn run_all(config: &Config) -> Result<()> {
         eprintln!();
     }
 
-    display::print_fetch_summary(success, failed);
-
+    let total = success + failed;
+    let noun = display::plural(total, "repository", "repositories");
+    if failed > 0 {
+        bail!("Failed to fetch {failed} of {total} {noun}");
+    }
+    display::print_note(&format!("Fetched {total} {noun}"));
     Ok(())
 }

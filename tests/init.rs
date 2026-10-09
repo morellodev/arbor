@@ -216,34 +216,74 @@ fn init_bash_completion_keeps_flags_for_branch_commands() {
     );
 }
 
-#[test]
+/// Runs `commands` in bash with the wrapper loaded and the test binary on PATH.
 #[cfg(not(windows))]
-fn bash_wrapper_cds_when_global_flag_precedes_subcommand() {
-    let env = TestEnv::new();
-    let script_path = write_bash_script(&env);
-
+fn run_wrapped(env: &TestEnv, cwd: &std::path::Path, commands: &str) -> std::process::Output {
+    let script_path = write_bash_script(env);
     let bin_dir = std::path::Path::new(env!("CARGO_BIN_EXE_arbor"))
         .parent()
         .unwrap();
     let path = format!("{}:{}", bin_dir.display(), std::env::var("PATH").unwrap());
 
-    let output = std::process::Command::new("bash")
+    std::process::Command::new("bash")
         .arg("-c")
-        .arg(r#"source "$1" 2>/dev/null; arbor --color never add feat >/dev/null 2>&1; pwd"#)
+        .arg(format!(r#"source "$1" 2>/dev/null; {commands}"#))
         .arg("bash")
         .arg(&script_path)
-        .current_dir(env.repo.path())
+        .current_dir(cwd)
         .env("PATH", path)
         .env("HOME", env.home.path())
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", env.home.path().join(".gitconfig"))
         .output()
-        .unwrap();
+        .unwrap()
+}
+
+#[test]
+#[cfg(not(windows))]
+fn bash_wrapper_cds_when_global_flag_precedes_subcommand() {
+    let env = TestEnv::new();
+    let output = run_wrapped(
+        &env,
+        env.repo.path(),
+        "arbor --color never add feat >/dev/null 2>&1; pwd",
+    );
 
     let cwd = String::from_utf8_lossy(&output.stdout);
     assert!(
         cwd.trim_end().ends_with("/feat"),
         "wrapper should cd into the new worktree, ended in: {cwd}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn bash_wrapper_leaves_removed_worktree_even_when_the_command_fails() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("unmerged");
+    common::git_cmd(
+        std::path::Path::new(&wt_path),
+        &["commit", "--allow-empty", "-m", "wip"],
+        env.home.path(),
+    );
+
+    let output = run_wrapped(
+        &env,
+        std::path::Path::new(&wt_path),
+        "arbor rm -d . 2>/dev/null; echo \"$?\"; pwd -P",
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut lines = stdout.lines();
+    assert_eq!(
+        lines.next(),
+        Some("1"),
+        "the failed branch deletion should be reported, got: {stdout}"
+    );
+    assert_eq!(
+        lines.next().map(std::path::PathBuf::from),
+        Some(fs::canonicalize(env.repo.path()).unwrap()),
+        "the shell should leave the deleted worktree"
     );
 }
 
@@ -276,4 +316,192 @@ fn bash_branch_completion_works_after_global_flags() {
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+#[test]
+#[cfg(not(windows))]
+fn init_inject_writes_zshrc_under_zdotdir() {
+    let env = TestEnv::new();
+    let zdotdir = env.home.path().join("zdot");
+    fs::create_dir_all(&zdotdir).unwrap();
+
+    let output = env
+        .arbor(&["init", "zsh", "--inject"])
+        .env("ZDOTDIR", &zdotdir)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let zshrc = fs::read_to_string(zdotdir.join(".zshrc")).unwrap();
+    assert!(zshrc.contains("arbor init zsh"));
+    assert!(!env.home.path().join(".zshrc").exists());
+}
+
+#[test]
+#[cfg(not(windows))]
+fn init_inject_writes_fish_config_under_xdg_config_home() {
+    let env = TestEnv::new();
+    let xdg = env.home.path().join("xdg");
+
+    let output = env
+        .arbor(&["init", "fish", "--inject"])
+        .env("XDG_CONFIG_HOME", &xdg)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let config = fs::read_to_string(xdg.join("fish/config.fish")).unwrap();
+    assert!(config.contains("arbor init fish | source"));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn init_inject_bash_uses_the_login_file_on_macos() {
+    let env = TestEnv::new();
+    fs::write(env.home.path().join(".profile"), "export A=1\n").unwrap();
+
+    let output = env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    assert!(output.status.success());
+    let profile = fs::read_to_string(env.home.path().join(".profile")).unwrap();
+    assert!(
+        profile.contains("arbor init bash"),
+        "login shells read the existing ~/.profile, got: {profile}"
+    );
+    assert!(!env.home.path().join(".bash_profile").exists());
+}
+
+#[test]
+#[cfg(not(windows))]
+fn init_inject_ignores_lines_that_only_mention_arbor_init() {
+    let env = TestEnv::new();
+    let zshrc_path = env.home.path().join(".zshrc");
+    fs::write(&zshrc_path, "alias ai=\"arbor init\"\n").unwrap();
+
+    env.arbor(&["init", "zsh", "--inject"]).output().unwrap();
+    let zshrc = fs::read_to_string(&zshrc_path).unwrap();
+    assert!(
+        zshrc.contains("eval \"$(arbor init zsh)\""),
+        "an alias is not shell integration, got: {zshrc}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn init_inject_keeps_non_utf8_config_intact() {
+    let env = TestEnv::new();
+    let zshrc_path = env.home.path().join(".zshrc");
+    fs::write(&zshrc_path, b"export N=\xe9\n").unwrap();
+
+    let output = env.arbor(&["init", "zsh", "--inject"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let zshrc = fs::read(&zshrc_path).unwrap();
+    assert!(zshrc.starts_with(b"export N=\xe9\n"));
+    assert!(String::from_utf8_lossy(&zshrc).contains("arbor init zsh"));
+}
+
+#[test]
+#[cfg(not(windows))]
+fn zsh_script_loads_without_compinit() {
+    let env = TestEnv::new();
+    let script = env.arbor(&["init", "zsh"]).output().unwrap();
+    let script_path = env.home.path().join("arbor.zsh");
+    fs::write(&script_path, &script.stdout).unwrap();
+
+    let Ok(output) = std::process::Command::new("zsh")
+        .args(["-f", "-c", r#"source "$1" && echo loaded"#, "zsh"])
+        .arg(&script_path)
+        .env("HOME", env.home.path())
+        .output()
+    else {
+        eprintln!("zsh not installed, skipping");
+        return;
+    };
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("command not found"),
+        "a fresh zsh must load the script cleanly, got: {stderr}"
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "loaded");
+}
+
+#[test]
+#[cfg(not(windows))]
+fn bash_add_completion_skips_remote_head() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    let clone = home.join("clone");
+    common::git_cmd(
+        home,
+        &[
+            "clone",
+            &env.repo.path().to_string_lossy(),
+            &clone.to_string_lossy(),
+        ],
+        home,
+    );
+    common::git_cmd(&clone, &["remote", "set-head", "origin", "main"], home);
+    let script_path = write_bash_script(&env);
+
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(r#"source "$1"; COMP_WORDS=(arbor add ''); COMP_CWORD=2; _arbor_branches; echo "${COMPREPLY[*]}""#)
+        .arg("bash")
+        .arg(&script_path)
+        .current_dir(&clone)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let words: Vec<&str> = stdout.split_whitespace().collect();
+    assert!(words.contains(&"main"), "got: {stdout}");
+    assert!(
+        !words.contains(&"origin") && !words.contains(&"HEAD"),
+        "origin/HEAD is not a branch, got: {stdout}"
+    );
+}
+
+#[test]
+fn init_ignores_a_broken_config() {
+    let env = TestEnv::new();
+    std::fs::write(
+        env.home.path().join(".arbor/config.toml"),
+        "worktree_dir = [broken\n",
+    )
+    .unwrap();
+
+    let output = env.arbor(&["init", "zsh"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "shell startup must not depend on config.toml, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("arbor()"));
+}
+
+#[test]
+#[cfg(not(windows))]
+fn init_inject_detects_dot_sourcing() {
+    let env = TestEnv::new();
+    let zshrc_path = env.home.path().join(".zshrc");
+    fs::write(&zshrc_path, ". <(arbor init zsh)\n").unwrap();
+
+    let output = env.arbor(&["init", "zsh", "--inject"]).output().unwrap();
+    assert!(String::from_utf8_lossy(&output.stderr).contains("already configured"));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn init_inject_bash_finds_existing_setup_in_bashrc_on_macos() {
+    let env = TestEnv::new();
+    fs::write(
+        env.home.path().join(".bashrc"),
+        "eval \"$(arbor init bash)\"\n",
+    )
+    .unwrap();
+
+    let output = env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("already configured"), "got: {stderr}");
+    assert!(!env.home.path().join(".bash_profile").exists());
 }

@@ -74,7 +74,7 @@ pub(super) fn run_git_inherited(args: &[&str], cwd: Option<&Path>) -> Result<()>
         .with_context(|| format!("Failed to run: git {}", args.join(" ")))?;
 
     if !status.success() {
-        bail!("Git {} exited with status {}", args.join(" "), status);
+        bail!("Git {} failed ({status})", args.join(" "));
     }
 
     Ok(())

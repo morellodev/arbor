@@ -44,17 +44,17 @@ fn reset_sigpipe() {
 #[cfg(not(unix))]
 fn reset_sigpipe() {}
 
+// Config is loaded only where it's used, so a broken config.toml can't break
+// `arbor init` at shell startup or the commands that never read it.
 fn run(cli: Cli) -> Result<()> {
-    let config = Config::load()?;
-
     match cli.command {
         Command::Add {
             ref branch,
             ref base,
             no_hooks,
-        } => commands::add(&config, branch, base.as_deref(), no_hooks),
+        } => commands::add(&Config::load()?, branch, base.as_deref(), no_hooks),
         Command::Switch { ref branch } => commands::switch(branch.as_deref()),
-        Command::List { all, json, short } => commands::list(&config, all, json, short),
+        Command::List { all, json, short } => commands::list(all, json, short),
         Command::Remove {
             ref branch,
             force,
@@ -66,13 +66,13 @@ fn run(cli: Cli) -> Result<()> {
             no_worktree,
             hooks,
             ..
-        } => commands::clone(&config, url, no_worktree, hooks),
+        } => commands::clone(&Config::load()?, url, no_worktree, hooks),
         Command::Clean {
             delete_branch,
             force,
         } => commands::clean(delete_branch, force),
         Command::Prune => commands::prune(),
-        Command::Fetch { all } => commands::fetch(&config, all),
+        Command::Fetch { all } => commands::fetch(all),
         Command::Init { ref shell, inject } => commands::init(shell.as_deref(), inject),
     }
 }

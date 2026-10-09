@@ -1,8 +1,9 @@
 mod common;
 
 use std::fs;
+use std::path::Path;
 
-use common::{TestEnv, stdout_canon};
+use common::{TestEnv, start_rebase, stdout_canon};
 
 #[test]
 fn switch_to_existing_worktree() {
@@ -30,6 +31,26 @@ fn switch_nonexistent_fails() {
         stderr.contains("arbor add"),
         "expected hint about arbor add, got: {stderr}"
     );
+    assert_eq!(
+        stderr.matches("No worktree found").count(),
+        1,
+        "the error should not repeat itself, got: {stderr}"
+    );
+}
+
+#[test]
+fn switch_finds_worktree_mid_rebase() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("rebasing");
+    start_rebase(Path::new(&wt_path), env.home.path());
+
+    let output = env.arbor(&["switch", "rebasing"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "should find the rebasing worktree, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(stdout_canon(&output), fs::canonicalize(&wt_path).unwrap());
 }
 
 #[test]

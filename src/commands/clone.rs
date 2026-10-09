@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -32,54 +33,108 @@ pub fn run(config: &Config, url: &str, no_worktree: bool, run_hooks: bool) -> Re
 
     display::print_note("Cloning bare repository...");
     git::clone_bare(&url, &dest)?;
-    git::configure_bare_fetch(&dest)?;
+
+    let result = set_up_clone(config, &dest, &name, no_worktree, run_hooks);
+    // A leftover bare repo would make every retry fail with "already exists".
+    if result.is_err() && fs::remove_dir_all(&dest).is_ok() {
+        display::print_note(&format!(
+            "Removed the incomplete clone at {}",
+            display::shorten_path(&dest)
+        ));
+    }
+    result
+}
+
+fn set_up_clone(
+    config: &Config,
+    dest: &Path,
+    name: &str,
+    no_worktree: bool,
+    run_hooks: bool,
+) -> Result<()> {
+    git::configure_bare_fetch(dest)?;
 
     display::print_note("Fetching remote branches...");
-    git::fetch_origin(&dest)?;
+    git::fetch_origin(dest)?;
 
-    let default_branch = git::head_branch(&dest).ok();
-    if let Some(branch) = &default_branch {
-        git::reset_bare_clone_branches(&dest, branch)?;
-    }
+    let default_branch = git::head_branch(dest).ok();
+    git::reset_bare_clone_branches(dest, default_branch.as_deref())?;
 
-    display::print_ok(&format!("Cloned to {}", display::shorten_path(&dest)));
+    display::print_ok(&format!("Cloned to {}", display::shorten_path(dest)));
 
-    if !no_worktree && let Some(default_branch) = default_branch {
-        // A bare clone has no working tree, so a repo's own worktree_dir never applies.
-        let wt_path = config.worktree_path(&name, &default_branch);
-
-        fs::create_dir_all(
-            wt_path
-                .parent()
-                .context("Worktree path has no parent directory")?,
-        )
-        .with_context(|| format!("Failed to create directory: {}", wt_path.display()))?;
-
-        git::worktree_add_existing(&wt_path, &default_branch, Some(&dest))?;
-        display::print_ok(&format!(
-            "Created '{}' at {}",
-            default_branch,
-            display::shorten_path(&wt_path)
-        ));
-        let hook_ctx = hooks::HookContext {
-            worktree_path: wt_path.clone(),
-            branch: default_branch.clone(),
-            repo_name: name.clone(),
-        };
-        if run_hooks {
-            hooks::run_post_create(&hook_ctx);
-        } else {
-            hooks::note_skipped_post_create(&hook_ctx);
-        }
-        display::print_path_hint(&wt_path);
+    if no_worktree {
+        print_next_steps(dest);
         return Ok(());
     }
+    let default_branch = match default_branch {
+        Some(branch) if git::local_branch_exists(&branch, Some(dest))? => branch,
+        Some(branch) => {
+            display::print_note(&format!(
+                "No worktree created: the remote has no commits on its default branch '{branch}'"
+            ));
+            print_next_steps(dest);
+            return Ok(());
+        }
+        None => {
+            display::print_note("No worktree created: the remote HEAD is not on a branch");
+            print_next_steps(dest);
+            return Ok(());
+        }
+    };
 
-    println!("{}", dest.display());
-    display::print_heading("Next steps:");
-    display::print_cd_hint(&dest);
-    display::print_hint("arbor add <branch>  # create a worktree from the cloned repo");
+    // A bare clone has no working tree, so a repo's own worktree_dir never applies.
+    let wt_path = config.worktree_path(name, &default_branch);
+    // The clone itself is fine; deleting it would only force a new download.
+    if wt_path.exists() {
+        display::print_note(&format!(
+            "No worktree created: {} already exists",
+            display::shorten_path(&wt_path)
+        ));
+        print_next_steps(dest);
+        return Ok(());
+    }
+    let parent = wt_path
+        .parent()
+        .context("Worktree path has no parent directory")?;
+    let created_parent = !parent.exists();
+    fs::create_dir_all(parent)
+        .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+
+    if let Err(e) = git::worktree_add_existing(&wt_path, &default_branch, Some(dest)) {
+        // A failing post-checkout hook fails the command after the checkout; the
+        // rollback removes the bare repo, so its worktree must go too.
+        let _ = fs::remove_dir_all(&wt_path);
+        if created_parent {
+            let _ = fs::remove_dir(parent);
+        }
+        return Err(e);
+    }
+    display::print_ok(&format!(
+        "Created '{}' at {}",
+        default_branch,
+        display::shorten_path(&wt_path)
+    ));
+    let hook_ctx = hooks::HookContext {
+        worktree_path: wt_path.clone(),
+        branch: default_branch,
+        repo_name: name.to_string(),
+    };
+    if run_hooks {
+        hooks::run_post_create(&hook_ctx);
+    } else {
+        hooks::note_skipped_post_create(&hook_ctx);
+    }
+    display::print_path_hint(&wt_path);
     Ok(())
+}
+
+fn print_next_steps(dest: &Path) {
+    if !std::io::stdout().is_terminal() {
+        println!("{}", dest.display());
+    }
+    display::print_heading("Next steps:");
+    display::print_cd_hint(dest);
+    display::print_hint("arbor add <branch>  # create a worktree from the cloned repo");
 }
 
 /// Expand a "user/repo" shorthand into a full GitHub HTTPS URL.
@@ -91,9 +146,10 @@ fn expand_shorthand(input: &str) -> String {
         return input.to_string();
     }
 
-    let parts: Vec<&str> = input.splitn(3, '/').collect();
+    let trimmed = input.trim_end_matches('/');
+    let parts: Vec<&str> = trimmed.splitn(3, '/').collect();
     if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-        return format!("https://github.com/{input}");
+        return format!("https://github.com/{trimmed}");
     }
 
     input.to_string()
@@ -195,6 +251,14 @@ mod tests {
     fn shorthand_expands_to_github_https() {
         assert_eq!(
             expand_shorthand("user/repo"),
+            "https://github.com/user/repo"
+        );
+    }
+
+    #[test]
+    fn shorthand_with_trailing_slash_expands() {
+        assert_eq!(
+            expand_shorthand("user/repo/"),
             "https://github.com/user/repo"
         );
     }

@@ -40,6 +40,20 @@ pub struct HookContext {
     pub repo_name: String,
 }
 
+impl HookContext {
+    fn env_vars(&self) -> [(&'static str, String); 4] {
+        [
+            (
+                "ARBOR_WORKTREE",
+                self.worktree_path.to_string_lossy().into_owned(),
+            ),
+            ("ARBOR_BRANCH", self.branch.clone()),
+            ("ARBOR_REPO", self.repo_name.clone()),
+            ("ARBOR_EVENT", "post_create".to_string()),
+        ]
+    }
+}
+
 fn load_project_config(worktree_path: &Path) -> anyhow::Result<Option<ProjectConfig>> {
     let config_path = worktree_path.join(".arbor.toml");
     if !config_path.exists() {
@@ -66,7 +80,7 @@ fn stderr_as_stdio() -> std::io::Result<Stdio> {
     Ok(owned.into())
 }
 
-fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(String, String)]) -> anyhow::Result<()> {
+fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(&str, String)]) -> anyhow::Result<()> {
     let stdout_redirect = stderr_as_stdio()?;
 
     let shell = if cfg!(windows) { "cmd" } else { "sh" };
@@ -135,36 +149,57 @@ pub fn load_worktree_dir_from_git(cwd: &Path) -> anyhow::Result<Option<String>> 
     Ok(config.worktree_dir)
 }
 
+fn load_post_create_commands(worktree_path: &Path) -> anyhow::Result<Vec<String>> {
+    Ok(load_project_config(worktree_path)?
+        .and_then(|config| config.hooks.post_create)
+        .map(HookCommands::into_vec)
+        .unwrap_or_default())
+}
+
 // A newline inside a hook command could print a line that passes for arbor's own output.
 fn one_line(cmd: &str) -> String {
     cmd.replace('\n', "\\n")
 }
 
-pub fn run_post_create(ctx: &HookContext) {
-    let config = match load_project_config(&ctx.worktree_path) {
-        Ok(Some(config)) => config,
-        Ok(None) => return,
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
+}
+
+pub fn note_skipped_post_create(ctx: &HookContext) {
+    let commands = match load_post_create_commands(&ctx.worktree_path) {
+        Ok(commands) if !commands.is_empty() => commands,
+        Ok(_) => return,
         Err(e) => {
             display::print_error(&format!("Failed to load .arbor.toml: {e}"));
             return;
         }
     };
 
-    let commands = match config.hooks.post_create {
-        Some(cmds) => cmds.into_vec(),
-        None => return,
+    let exports: Vec<String> = ctx
+        .env_vars()
+        .iter()
+        .map(|(key, value)| format!("{key}={}", shell_quote(value)))
+        .collect();
+    display::print_note(
+        "Skipped post_create hooks from the cloned repo (pass --hooks to run them). \
+         To run them yourself after reviewing them, from the new worktree:",
+    );
+    display::print_hint(&format!("export {}", exports.join(" ")));
+    for cmd in &commands {
+        display::print_hint(&one_line(cmd));
+    }
+}
+
+pub fn run_post_create(ctx: &HookContext) {
+    let commands = match load_post_create_commands(&ctx.worktree_path) {
+        Ok(commands) => commands,
+        Err(e) => {
+            display::print_error(&format!("Failed to load .arbor.toml: {e}"));
+            return;
+        }
     };
 
-    let env_vars = vec![
-        (
-            "ARBOR_WORKTREE".to_string(),
-            ctx.worktree_path.to_string_lossy().into_owned(),
-        ),
-        ("ARBOR_BRANCH".to_string(), ctx.branch.clone()),
-        ("ARBOR_REPO".to_string(), ctx.repo_name.clone()),
-        ("ARBOR_EVENT".to_string(), "post_create".to_string()),
-    ];
-
+    let env_vars = ctx.env_vars();
     for cmd in &commands {
         display::print_note(&format!("Running hook: {}", one_line(cmd)));
         if let Err(e) = run_hook_command(cmd, &ctx.worktree_path, &env_vars) {

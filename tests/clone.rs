@@ -106,6 +106,72 @@ fn add_in_bare_repo_ignores_committed_worktree_dir() {
     );
 }
 
+fn commit_marker_hook(env: &TestEnv) -> PathBuf {
+    let marker = env.home.path().join("hook-ran.txt");
+    commit_arbor_toml(
+        env,
+        &format!(
+            "[hooks]\npost_create = \"touch {}\"\n",
+            marker.to_string_lossy()
+        ),
+    );
+    marker
+}
+
+#[test]
+fn clone_skips_hooks_by_default_and_lists_them() {
+    let env = TestEnv::new();
+    let marker = commit_marker_hook(&env);
+
+    let output = clone_output(&env, &[]);
+    assert!(
+        !marker.exists(),
+        "cloning must not run the cloned repo's hooks by default"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Skipped post_create hooks") && stderr.contains("touch "),
+        "should list the skipped hooks, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("ARBOR_BRANCH='main'") && stderr.contains("ARBOR_EVENT='post_create'"),
+        "should give the hook environment for running them by hand, got: {stderr}"
+    );
+}
+
+#[test]
+fn clone_with_hooks_flag_runs_hooks() {
+    let env = TestEnv::new();
+    let marker = commit_marker_hook(&env);
+
+    clone_origin(&env, &["--hooks"]);
+    assert!(
+        marker.exists(),
+        "--hooks should run the cloned repo's hooks"
+    );
+}
+
+#[test]
+fn clone_ignores_worktree_dir_outside_the_repo() {
+    let env = TestEnv::new();
+    let outside = env.home.path().join("outside");
+    commit_arbor_toml(
+        &env,
+        &format!("worktree_dir = \"{}\"\n", outside.to_string_lossy()),
+    );
+
+    let output = clone_output(&env, &[]);
+    assert!(
+        !outside.exists(),
+        "a cloned repo must not place its worktree outside itself"
+    );
+    assert!(
+        Path::new(&stdout_path(&output)).starts_with(env.home.path().join(".arbor/worktrees")),
+        "should fall back to the configured worktree_dir, got: {}",
+        stdout_path(&output)
+    );
+}
+
 #[test]
 fn clone_dot_names_the_repo_after_its_directory() {
     let env = TestEnv::new();
@@ -132,22 +198,31 @@ fn clone_dot_names_the_repo_after_its_directory() {
 }
 
 #[test]
-fn clone_ignores_worktree_dir_outside_the_repo() {
+fn clone_rejects_hooks_without_a_worktree() {
     let env = TestEnv::new();
-    let outside = env.home.path().join("outside");
-    commit_arbor_toml(
-        &env,
-        &format!("worktree_dir = \"{}\"\n", outside.to_string_lossy()),
+    let url = env.repo.path().to_string_lossy().into_owned();
+    let output = env
+        .arbor_in(
+            env.home.path(),
+            &["clone", &url, "--hooks", "--no-worktree"],
+        )
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "--hooks has nothing to run without a worktree"
     );
+}
+
+#[test]
+fn clone_reports_a_malformed_arbor_toml() {
+    let env = TestEnv::new();
+    commit_arbor_toml(&env, "[hooks\npost_create = \"true\"\n");
 
     let output = clone_output(&env, &[]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        !outside.exists(),
-        "a cloned repo must not place its worktree outside itself"
-    );
-    assert!(
-        Path::new(&stdout_path(&output)).starts_with(env.home.path().join(".arbor/worktrees")),
-        "should fall back to the configured worktree_dir, got: {}",
-        stdout_path(&output)
+        stderr.contains("Failed to load .arbor.toml"),
+        "a broken .arbor.toml must not hide its hooks silently, got: {stderr}"
     );
 }

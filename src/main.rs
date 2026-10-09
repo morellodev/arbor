@@ -64,8 +64,9 @@ fn run(cli: Cli) -> Result<()> {
         Command::Clone {
             ref url,
             no_worktree,
-            no_hooks,
-        } => commands::clone(&config, url, no_worktree, no_hooks),
+            hooks,
+            ..
+        } => commands::clone(&config, url, no_worktree, hooks),
         Command::Clean {
             delete_branch,
             force,

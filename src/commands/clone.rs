@@ -6,7 +6,7 @@ use anyhow::{Context, Result, bail};
 use crate::config::Config;
 use crate::{display, git, hooks};
 
-pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Result<()> {
+pub fn run(config: &Config, url: &str, no_worktree: bool, run_hooks: bool) -> Result<()> {
     let url = expand_shorthand(url);
     let (url, name) = if is_local_path(&url) {
         let path = resolve_local_source(&url)?;
@@ -61,12 +61,15 @@ pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Res
             default_branch,
             display::shorten_path(&wt_path)
         ));
-        if !no_hooks {
-            hooks::run_post_create(&hooks::HookContext {
-                worktree_path: wt_path.clone(),
-                branch: default_branch.clone(),
-                repo_name: name.clone(),
-            });
+        let hook_ctx = hooks::HookContext {
+            worktree_path: wt_path.clone(),
+            branch: default_branch.clone(),
+            repo_name: name.clone(),
+        };
+        if run_hooks {
+            hooks::run_post_create(&hook_ctx);
+        } else {
+            hooks::note_skipped_post_create(&hook_ctx);
         }
         display::print_path_hint(&wt_path);
         return Ok(());

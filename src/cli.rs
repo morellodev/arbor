@@ -113,8 +113,11 @@ Examples:
         /// Don't create a worktree for the default branch after cloning
         #[arg(long)]
         no_worktree: bool,
-        /// Skip post-create hooks
-        #[arg(long)]
+        /// Run post-create hooks from the cloned repo's .arbor.toml (skipped by default)
+        #[arg(long, conflicts_with = "no_worktree")]
+        hooks: bool,
+        /// Skip post-create hooks (the default; kept for compatibility)
+        #[arg(long, hide = true, conflicts_with = "hooks")]
         no_hooks: bool,
     },
 

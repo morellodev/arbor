@@ -5,9 +5,9 @@ use crate::{display, git};
 
 use super::list::scan_repos;
 
-pub fn run(config: &Config, all: bool) -> Result<()> {
+pub fn run(all: bool) -> Result<()> {
     if all {
-        return run_all(config);
+        return run_all(&Config::load()?);
     }
 
     let toplevel = git::repo_toplevel()?;

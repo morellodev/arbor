@@ -460,3 +460,21 @@ fn bash_add_completion_skips_remote_head() {
         "origin/HEAD is not a branch, got: {stdout}"
     );
 }
+
+#[test]
+fn init_ignores_a_broken_config() {
+    let env = TestEnv::new();
+    std::fs::write(
+        env.home.path().join(".arbor/config.toml"),
+        "worktree_dir = [broken\n",
+    )
+    .unwrap();
+
+    let output = env.arbor(&["init", "zsh"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "shell startup must not depend on config.toml, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("arbor()"));
+}

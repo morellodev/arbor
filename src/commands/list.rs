@@ -5,17 +5,12 @@ use anyhow::Result;
 
 use crate::{config::Config, display, git};
 
-pub fn run(config: &Config, all: bool, json: bool, short: bool) -> Result<()> {
-    if json {
-        if all {
-            list_all_repos_json(config)
-        } else {
-            list_repo_json(None)
-        }
-    } else if all {
-        list_all_repos(config, short)
-    } else {
-        list_repo(None, short)
+pub fn run(all: bool, json: bool, short: bool) -> Result<()> {
+    match (all, json) {
+        (true, true) => list_all_repos_json(&Config::load()?),
+        (true, false) => list_all_repos(&Config::load()?, short),
+        (false, true) => list_repo_json(None),
+        (false, false) => list_repo(None, short),
     }
 }
 

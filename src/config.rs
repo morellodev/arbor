@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 const CONFIG_DIR_NAME: &str = ".arbor";
@@ -66,16 +66,21 @@ fn resolve_path(path: &Path, base: &Path) -> Result<PathBuf> {
 
 pub(crate) fn expand_tilde(path: &Path) -> Result<PathBuf> {
     let s = path.to_string_lossy();
-    if let Some(stripped) = s.strip_prefix('~') {
-        let home = std::env::home_dir().context("Could not determine home directory")?;
-        let rest = stripped
-            .strip_prefix('/')
-            .or_else(|| stripped.strip_prefix('\\'))
-            .unwrap_or(stripped);
-        Ok(home.join(rest))
+    let Some(stripped) = s.strip_prefix('~') else {
+        return Ok(path.to_path_buf());
+    };
+    let rest = if stripped.is_empty() {
+        ""
+    } else if let Some(rest) = stripped
+        .strip_prefix('/')
+        .or_else(|| stripped.strip_prefix('\\'))
+    {
+        rest
     } else {
-        Ok(path.to_path_buf())
-    }
+        bail!("{s}: `~user` paths are not supported, use the full path");
+    };
+    let home = std::env::home_dir().context("Could not determine home directory")?;
+    Ok(home.join(rest))
 }
 
 #[cfg(test)]
@@ -94,6 +99,11 @@ mod tests {
         let home = std::env::home_dir().unwrap();
         let result = expand_tilde(Path::new("~")).unwrap();
         assert_eq!(result, home);
+    }
+
+    #[test]
+    fn expand_tilde_rejects_other_users_home() {
+        assert!(expand_tilde(Path::new("~nobody/wt")).is_err());
     }
 
     #[test]

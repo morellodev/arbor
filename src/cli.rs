@@ -144,9 +144,9 @@ Examples:
     /// Set up shell integration (completions + cd wrapper)
     #[command(after_help = "\
 Examples:
-  arbor init              # auto-detects your shell
-  arbor init zsh          # explicit shell
-  eval \"$(arbor init)\"    # activate in current session")]
+  arbor init                # auto-detects your shell from $SHELL
+  arbor init zsh            # explicit shell
+  eval \"$(arbor init zsh)\"  # activate in the current zsh session")]
     Init {
         /// Shell to generate integration for (bash, zsh, fish). Auto-detected from $SHELL if omitted.
         shell: Option<String>,

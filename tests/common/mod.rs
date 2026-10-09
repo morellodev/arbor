@@ -54,6 +54,9 @@ impl TestEnv {
         cmd.env("HOME", self.home.path());
         cmd.env("GIT_CONFIG_NOSYSTEM", "1");
         cmd.env("GIT_CONFIG_GLOBAL", self.home.path().join(".gitconfig"));
+        // `init --inject` writes under these when set, i.e. outside the test HOME.
+        cmd.env_remove("ZDOTDIR");
+        cmd.env_remove("XDG_CONFIG_HOME");
         #[cfg(windows)]
         cmd.env("USERPROFILE", self.home.path());
         cmd.args(args);

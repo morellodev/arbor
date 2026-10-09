@@ -167,6 +167,24 @@ fn init_inject_already_configured() {
 
 #[test]
 #[cfg(not(windows))]
+fn init_inject_detects_eval_without_shell_arg() {
+    let env = TestEnv::new();
+    let zshrc_path = env.home.path().join(".zshrc");
+    fs::write(&zshrc_path, "eval \"$(arbor init)\"\n").unwrap();
+
+    let output = env.arbor(&["init", "zsh", "--inject"]).output().unwrap();
+    assert!(output.status.success());
+
+    let zshrc = fs::read_to_string(&zshrc_path).unwrap();
+    assert_eq!(
+        zshrc.matches("arbor init").count(),
+        1,
+        "should not add a second line, got: {zshrc}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
 fn init_bash_completion_keeps_flags_for_branch_commands() {
     let env = TestEnv::new();
     let script = env.arbor(&["init", "bash"]).output().unwrap();

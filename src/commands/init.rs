@@ -37,14 +37,6 @@ impl Shell {
             )
         })
     }
-
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Bash => "bash",
-            Self::Zsh => "zsh",
-            Self::Fish => "fish",
-        }
-    }
 }
 
 fn config_file_path(shell: &Shell) -> Result<PathBuf> {
@@ -64,16 +56,17 @@ fn eval_line(shell: &Shell) -> &'static str {
     }
 }
 
-fn already_configured(path: &Path, shell: &Shell) -> Result<bool> {
+fn already_configured(path: &Path) -> Result<bool> {
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(e) => return Err(e).context(format!("Failed to read {}", path.display())),
     };
-    let needle = format!("arbor init {}", shell.name());
+    // The shell argument is optional (`eval "$(arbor init)"`), and the file is
+    // already specific to this shell, so any `arbor init` line counts.
     Ok(content
         .lines()
-        .any(|line| !line.trim_start().starts_with('#') && line.contains(&needle)))
+        .any(|line| !line.trim_start().starts_with('#') && line.contains("arbor init")))
 }
 
 fn inject_into_config(path: &Path, line: &str) -> Result<()> {
@@ -118,7 +111,7 @@ pub fn run(shell: Option<&str>, inject: bool) -> Result<()> {
     let line = eval_line(&shell);
     let short_path = display::shorten_path(&config_path);
 
-    if already_configured(&config_path, &shell)? {
+    if already_configured(&config_path)? {
         display::print_ok("Shell integration is already configured");
         display::print_hint(&format!("Found in {short_path}"));
         return Ok(());

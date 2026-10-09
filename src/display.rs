@@ -308,7 +308,7 @@ pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
 fn new_table() -> Table {
     let mut table = Table::new();
     table
-        .load_preset(NOTHING)
+        .load_style(NOTHING)
         .set_content_arrangement(ContentArrangement::Dynamic);
     table
 }

@@ -164,6 +164,11 @@ pub fn print_section(name: &str) {
     eprintln!("{}{}", "# ".bold(), sanitize(name).bold());
 }
 
+pub fn print_listing_section(name: &str) {
+    let heading = with_stdout_colors(|| format!("{}{}", "# ".bold(), sanitize(name).bold()));
+    println!("{heading}");
+}
+
 pub fn print_hint(text: &str) {
     eprintln!("  {}", sanitize(text).dimmed());
 }
@@ -198,7 +203,9 @@ fn colored_branch(entry: &WorktreeInfo) -> String {
 }
 
 fn colored_state(entry: &WorktreeInfo) -> String {
-    if entry.dirty {
+    if entry.missing {
+        "missing".red().to_string()
+    } else if entry.dirty {
         "\u{2717}".yellow().to_string()
     } else {
         "\u{2713}".green().to_string()
@@ -354,7 +361,10 @@ pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
     );
     let repos = summaries.len();
     let label = format!("Total ({repos} {})", plural(repos, "repo", "repos"));
-    eprintln!("{}", format_summary(&label, &aggregate));
+    println!(
+        "{}",
+        with_stdout_colors(|| format_summary(&label, &aggregate))
+    );
 }
 
 fn new_table() -> Table {

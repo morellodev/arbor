@@ -243,8 +243,12 @@ fn infos_from_porcelain(porcelain: &str) -> Vec<WorktreeInfo> {
             continue;
         }
 
-        let tracking = ahead_behind(&entry.path);
-        let dirty = is_worktree_dirty(&entry.path);
+        let missing = !entry.path.exists();
+        let (tracking, dirty) = if missing {
+            (None, false)
+        } else {
+            (ahead_behind(&entry.path), is_worktree_dirty(&entry.path))
+        };
         // Checked on attached worktrees too: `bisect start --no-checkout` keeps HEAD on the branch.
         let in_progress = operation_in_progress(&entry.path);
         results.push(WorktreeInfo {
@@ -252,6 +256,7 @@ fn infos_from_porcelain(porcelain: &str) -> Vec<WorktreeInfo> {
             branch: entry.branch,
             dirty,
             tracking,
+            missing,
             main: i == 0,
             in_progress,
         });

@@ -70,6 +70,8 @@ pub struct WorktreeInfo {
     pub branch: Option<String>,
     pub dirty: bool,
     pub tracking: Option<Tracking>,
+    /// The directory is gone; `arbor prune` drops the entry.
+    pub missing: bool,
     #[serde(skip)]
     pub main: bool,
     #[serde(skip)]

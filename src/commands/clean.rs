@@ -184,6 +184,7 @@ mod tests {
             branch: branch.map(String::from),
             dirty,
             tracking,
+            missing: false,
             main: false,
             in_progress: None,
         }

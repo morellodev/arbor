@@ -76,8 +76,6 @@ pub struct WorktreeInfo {
     pub missing: bool,
     #[serde(skip)]
     pub main: bool,
-    #[serde(skip)]
-    pub in_progress: Option<InProgress>,
 }
 
 /// A rebase or bisect that detached HEAD, and the branch it returns to.

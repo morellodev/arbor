@@ -400,3 +400,21 @@ fn remove_dot_in_nested_worktree_removes_inner_worktree() {
     );
     assert!(env.repo.path().exists(), "main worktree must survive");
 }
+
+#[test]
+fn remove_dot_deletes_the_branch_of_a_worktree_mid_rebase() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("rebasing");
+    start_rebase(Path::new(&wt_path), env.home.path());
+
+    let output = env
+        .arbor_in(Path::new(&wt_path), &["remove", ".", "-f", "-d"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        stderr.contains("Deleted branch 'rebasing'"),
+        "the rebased branch should be deleted, got: {stderr}"
+    );
+}

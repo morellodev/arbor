@@ -472,7 +472,6 @@ mod tests {
             tracking: None,
             missing: false,
             main: false,
-            in_progress: None,
         };
         let items =
             format_worktree_items(&[worktree("功能"), worktree("🚀ship"), worktree("abcdef")]);

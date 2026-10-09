@@ -40,7 +40,8 @@ fn resolve_dot() -> Result<(PathBuf, Option<String>)> {
     match display::innermost_containing(&cwd, worktrees.iter().map(|wt| wt.path.as_path())) {
         Some(idx) => {
             let wt = worktrees.swap_remove(idx);
-            Ok((wt.path, wt.branch))
+            let branch = git::effective_branch(&wt);
+            Ok((wt.path, branch))
         }
         None => bail!("Not inside a worktree"),
     }

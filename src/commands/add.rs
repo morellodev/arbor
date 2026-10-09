@@ -36,20 +36,28 @@ pub fn run(config: &Config, branch: &str, base: Option<&str>, no_hooks: bool) ->
     .to_string();
     let wt_path = resolve_wt_path(config, &repo_name, branch, &repo_root)?;
 
-    let worktrees = git::parse_worktree_list(&git::worktree_list_porcelain(None)?);
+    // Paired with the effective branch, so a worktree mid-rebase of `branch` counts as its own.
+    let worktrees: Vec<_> = git::parse_worktree_list(&git::worktree_list_porcelain(None)?)
+        .into_iter()
+        .filter(|wt| !wt.bare)
+        .map(|wt| {
+            let branch = git::effective_branch(&wt);
+            (wt.path, branch)
+        })
+        .collect();
     let canonical_wt_path = fs::canonicalize(&wt_path).ok();
-    let at_wt_path = worktrees.iter().find(|wt| {
-        canonical_wt_path.is_some() && fs::canonicalize(&wt.path).ok() == canonical_wt_path
+    let at_wt_path = worktrees.iter().find(|(path, _)| {
+        canonical_wt_path.is_some() && fs::canonicalize(path).ok() == canonical_wt_path
     });
     let with_branch = worktrees
         .iter()
-        .find(|wt| !wt.bare && wt.branch.as_deref() == Some(branch) && wt.path.exists());
+        .find(|(path, b)| b.as_deref() == Some(branch) && path.exists());
 
-    // A worktree at the expected path with no branch is mid-rebase/bisect or detached: still ours.
+    // A detached worktree at the expected path is still ours.
     let existing = match (with_branch, at_wt_path) {
-        (Some(wt), Some(at)) if wt.path == at.path => Some(wt_path.clone()),
-        (Some(wt), _) => Some(wt.path.clone()),
-        (None, Some(at)) => match &at.branch {
+        (Some((path, _)), Some((at, _))) if path == at => Some(wt_path.clone()),
+        (Some((path, _)), _) => Some(path.clone()),
+        (None, Some((_, at_branch))) => match at_branch {
             None => Some(wt_path.clone()),
             Some(other) => bail!(
                 "{} is already the worktree for '{other}'",

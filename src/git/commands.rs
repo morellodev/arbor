@@ -8,8 +8,8 @@ use super::runner::{
     run_git, run_git_inherited, run_git_output, run_git_output_with_env, run_git_with_input,
 };
 use super::types::{
-    InProgress, PrunedWorktree, Tracking, WorktreeInfo, parse_prune_output, parse_worktree_list,
-    sanitize_branch,
+    InProgress, ParsedWorktree, PrunedWorktree, Tracking, WorktreeInfo, parse_prune_output,
+    parse_worktree_list, sanitize_branch,
 };
 
 pub fn show_file_from_head(file: &str, cwd: &Path) -> Result<String> {
@@ -261,8 +261,15 @@ pub fn is_worktree_dirty(path: &Path) -> bool {
 }
 
 pub fn operation_in_progress(worktree: &Path) -> Option<InProgress> {
-    let git_dir =
-        PathBuf::from(run_git(&["rev-parse", "--absolute-git-dir"], Some(worktree)).ok()?);
+    // The ceiling keeps a broken worktree from reporting an enclosing repo's state.
+    let ceiling = worktree.parent().unwrap_or(worktree);
+    let output = run_git_output_with_env(
+        &["rev-parse", "--absolute-git-dir"],
+        Some(worktree),
+        &[("GIT_CEILING_DIRECTORIES", ceiling.as_os_str())],
+    )
+    .ok()?;
+    let git_dir = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
     let (operation, head) = [
         ("rebase", "rebase-merge/head-name"),
         ("rebase", "rebase-apply/head-name"),
@@ -279,6 +286,15 @@ pub fn operation_in_progress(worktree: &Path) -> Option<InProgress> {
         .unwrap_or(false)
         .then(|| name.to_string());
     Some(InProgress { operation, branch })
+}
+
+/// The worktree's branch, or the one a rebase or bisect that detached HEAD returns to.
+pub fn effective_branch(wt: &ParsedWorktree) -> Option<String> {
+    match &wt.branch {
+        Some(branch) => Some(branch.clone()),
+        None if !wt.bare => operation_in_progress(&wt.path).and_then(|op| op.branch),
+        None => None,
+    }
 }
 
 pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
@@ -311,16 +327,14 @@ fn infos_from_porcelain(porcelain: &str) -> Vec<WorktreeInfo> {
         } else {
             (ahead_behind(&entry.path), is_worktree_dirty(&entry.path))
         };
-        // Checked on attached worktrees too: `bisect start --no-checkout` keeps HEAD on the branch.
-        let in_progress = operation_in_progress(&entry.path);
+        let branch = effective_branch(&entry);
         results.push(WorktreeInfo {
             path: entry.path,
-            branch: entry.branch,
+            branch,
             dirty,
             tracking,
             missing,
             main: i == 0,
-            in_progress,
         });
     }
 
@@ -335,12 +349,7 @@ pub fn resolve_worktree_branch(branch: &str, cwd: Option<&Path>) -> Result<(Path
     let mut sanitized_match = None;
 
     for wt in &worktrees {
-        let name = match &wt.branch {
-            Some(b) => Some(b.clone()),
-            None if !wt.bare => operation_in_progress(&wt.path).and_then(|op| op.branch),
-            None => None,
-        };
-        if let Some(b) = name {
+        if let Some(b) = effective_branch(wt) {
             if b == branch {
                 return Ok((wt.path.clone(), b));
             }

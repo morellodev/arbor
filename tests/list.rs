@@ -351,3 +351,20 @@ fn list_shortens_paths_under_home() {
         "worktree paths under HOME should start with ~, got: {stdout}"
     );
 }
+
+#[test]
+fn list_names_the_branch_of_a_worktree_mid_rebase() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("rebasing");
+    common::start_rebase(Path::new(&wt_path), env.home.path());
+
+    let output = env.arbor(&["ls", "--json"]).output().unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(
+        json.as_array()
+            .unwrap()
+            .iter()
+            .any(|wt| wt["branch"] == "rebasing"),
+        "got: {json}"
+    );
+}

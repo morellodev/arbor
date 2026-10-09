@@ -7,8 +7,9 @@ use dialoguer::MultiSelect;
 use crate::git::WorktreeInfo;
 use crate::{display, git};
 
-fn is_abandoned(wt: &WorktreeInfo) -> bool {
-    wt.branch.is_none() && !wt.dirty && wt.tracking.is_none() && wt.in_progress.is_none()
+/// `operation` is the rebase or bisect in progress, if any.
+fn is_abandoned(wt: &WorktreeInfo, operation: Option<&str>) -> bool {
+    wt.branch.is_none() && !wt.dirty && wt.tracking.is_none() && operation.is_none()
 }
 
 struct CleanResult {
@@ -18,6 +19,7 @@ struct CleanResult {
 
 fn remove_worktrees(
     worktrees: &[WorktreeInfo],
+    operations: &[Option<&str>],
     selections: &[usize],
     delete_branch: bool,
     force: bool,
@@ -31,15 +33,10 @@ fn remove_worktrees(
         let short_path = display::shorten_path(&wt.path);
 
         // `git worktree remove` doesn't refuse a rebase or bisect in progress.
-        if !force && let Some(op) = &wt.in_progress {
-            let label = wt
-                .branch
-                .as_deref()
-                .or(op.branch.as_deref())
-                .unwrap_or(&short_path);
+        if !force && let Some(operation) = operations[idx] {
+            let label = wt.branch.as_deref().unwrap_or(&short_path);
             display::print_error(&format!(
-                "Skipped {label}: a {} is in progress. Use --force to remove it anyway.",
-                op.operation
+                "Skipped {label}: a {operation} is in progress. Use --force to remove it anyway."
             ));
             failures += 1;
             continue;
@@ -113,8 +110,17 @@ pub fn run(delete_branch: bool, force: bool) -> Result<()> {
         return Ok(());
     }
 
+    // Checked on attached worktrees too: `bisect start --no-checkout` keeps HEAD on the branch.
+    let operations: Vec<Option<&str>> = worktrees
+        .iter()
+        .map(|wt| git::operation_in_progress(&wt.path).map(|op| op.operation))
+        .collect();
     let items = display::format_worktree_items(&worktrees);
-    let defaults: Vec<bool> = worktrees.iter().map(is_abandoned).collect();
+    let defaults: Vec<bool> = worktrees
+        .iter()
+        .zip(&operations)
+        .map(|(wt, op)| is_abandoned(wt, *op))
+        .collect();
 
     let selections = MultiSelect::new()
         .with_prompt("Select worktrees to remove (Space to toggle, Enter to confirm)")
@@ -148,7 +154,7 @@ pub fn run(delete_branch: bool, force: bool) -> Result<()> {
         std::env::set_current_dir(dir)?;
     }
 
-    let result = remove_worktrees(&worktrees, &selections, delete_branch, force);
+    let result = remove_worktrees(&worktrees, &operations, &selections, delete_branch, force);
 
     if let (Some(toplevel), Some(path)) = (toplevel, cwd_worktree)
         && result.removed.iter().any(|p| p == path)
@@ -170,7 +176,7 @@ pub fn run(delete_branch: bool, force: bool) -> Result<()> {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::git::{InProgress, Tracking};
+    use crate::git::Tracking;
 
     use super::*;
 
@@ -186,30 +192,25 @@ mod tests {
             tracking,
             missing: false,
             main: false,
-            in_progress: None,
         }
     }
 
     #[test]
     fn detached_clean_no_upstream_is_abandoned() {
         let wt = make_worktree(None, false, None);
-        assert!(is_abandoned(&wt));
+        assert!(is_abandoned(&wt, None));
     }
 
     #[test]
     fn detached_mid_rebase_is_not_abandoned() {
-        let mut wt = make_worktree(None, false, None);
-        wt.in_progress = Some(InProgress {
-            operation: "rebase",
-            branch: Some("feat".into()),
-        });
-        assert!(!is_abandoned(&wt));
+        let wt = make_worktree(None, false, None);
+        assert!(!is_abandoned(&wt, Some("rebase")));
     }
 
     #[test]
     fn detached_dirty_is_not_abandoned() {
         let wt = make_worktree(None, true, None);
-        assert!(!is_abandoned(&wt));
+        assert!(!is_abandoned(&wt, None));
     }
 
     #[test]
@@ -222,13 +223,13 @@ mod tests {
                 behind: 0,
             }),
         );
-        assert!(!is_abandoned(&wt));
+        assert!(!is_abandoned(&wt, None));
     }
 
     #[test]
     fn named_branch_clean_no_upstream_is_not_abandoned() {
         let wt = make_worktree(Some("feat"), false, None);
-        assert!(!is_abandoned(&wt));
+        assert!(!is_abandoned(&wt, None));
     }
 
     #[test]
@@ -241,7 +242,7 @@ mod tests {
                 behind: 0,
             }),
         );
-        assert!(!is_abandoned(&wt));
+        assert!(!is_abandoned(&wt, None));
     }
 
     #[test]
@@ -254,6 +255,6 @@ mod tests {
                 behind: 0,
             }),
         );
-        assert!(!is_abandoned(&wt));
+        assert!(!is_abandoned(&wt, None));
     }
 }

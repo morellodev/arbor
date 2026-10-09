@@ -175,7 +175,16 @@ fn print_script(shell: &Shell) -> Result<()> {
 }
 
 const SHELL_WRAPPER: &str = r#"arbor() {
-  case "$1" in
+  local arg subcommand skip_value=0
+  for arg in "$@"; do
+    if [ "$skip_value" = 1 ]; then skip_value=0; continue; fi
+    case "$arg" in
+      --color) skip_value=1 ;;
+      -*) ;;
+      *) subcommand="$arg"; break ;;
+    esac
+  done
+  case "$subcommand" in
     add|switch|cd|clone|remove|rm|clean)
       local dir
       dir=$(command arbor "$@") || return $?
@@ -188,7 +197,23 @@ const SHELL_WRAPPER: &str = r#"arbor() {
 }"#;
 
 const FISH_WRAPPER: &str = r#"function arbor --wraps arbor
-  switch $argv[1]
+  set -l subcommand
+  set -l skip_value 0
+  for arg in $argv
+    if test $skip_value = 1
+      set skip_value 0
+      continue
+    end
+    switch $arg
+      case --color
+        set skip_value 1
+      case '-*'
+      case '*'
+        set subcommand $arg
+        break
+    end
+  end
+  switch "$subcommand"
     case add switch cd clone remove rm clean
       set -l dir (command arbor $argv)
       or return $status
@@ -204,7 +229,20 @@ const BASH_BRANCH_COMPLETIONS: &str = r#"
 _arbor_branches() {
   _arbor "$@"
   [[ "${COMP_WORDS[COMP_CWORD]}" == -* ]] && return
-  case "${COMP_WORDS[1]}" in
+  local i subcommand skip_value=0
+  for ((i = 1; i < COMP_CWORD; i++)); do
+    if [ "$skip_value" = 1 ]; then
+      # bash splits --color=never into "--color" "=" "never".
+      [ "${COMP_WORDS[i]}" = "=" ] || skip_value=0
+      continue
+    fi
+    case "${COMP_WORDS[i]}" in
+      --color) skip_value=1 ;;
+      -*) ;;
+      *) subcommand="${COMP_WORDS[i]}"; break ;;
+    esac
+  done
+  case "$subcommand" in
     add)
       local branches
       branches=$(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u)
@@ -223,7 +261,16 @@ complete -F _arbor_branches arbor
 const ZSH_BRANCH_COMPLETIONS: &str = r#"
 _arbor_branches() {
   _arbor "$@"
-  case "${words[2]}" in
+  local i subcommand skip_value=0
+  for ((i = 2; i < CURRENT; i++)); do
+    if (( skip_value )); then skip_value=0; continue; fi
+    case "${words[i]}" in
+      --color) skip_value=1 ;;
+      -*) ;;
+      *) subcommand="${words[i]}"; break ;;
+    esac
+  done
+  case "$subcommand" in
     add)
       local -a branches=($(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/origin/ 2>/dev/null | sed 's|^origin/||' | sort -u))
       _describe 'branch' branches

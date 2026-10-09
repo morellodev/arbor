@@ -15,6 +15,7 @@ fn remove_worktrees(
     worktrees: &[WorktreeInfo],
     selections: &[usize],
     delete_branch: bool,
+    force: bool,
 ) -> Result<Vec<PathBuf>> {
     let mut removed_paths = Vec::new();
     let mut branches_deleted = 0;
@@ -23,7 +24,6 @@ fn remove_worktrees(
         let wt = &worktrees[idx];
         let short_path = display::shorten_path(&wt.path);
 
-        let force = wt.dirty;
         match git::worktree_remove(&wt.path, force) {
             Ok(()) => {
                 display::print_ok(&format!("Removed {short_path}"));
@@ -68,7 +68,7 @@ fn remove_worktrees(
     Ok(removed_paths)
 }
 
-pub fn run(delete_branch: bool) -> Result<()> {
+pub fn run(delete_branch: bool, force: bool) -> Result<()> {
     if !std::io::stdin().is_terminal() {
         bail!(
             "Interactive terminal required. Use `arbor rm` to remove worktrees non-interactively."
@@ -119,7 +119,7 @@ pub fn run(delete_branch: bool) -> Result<()> {
         std::env::set_current_dir(dir)?;
     }
 
-    let removed = remove_worktrees(&worktrees, &selections, delete_branch)?;
+    let removed = remove_worktrees(&worktrees, &selections, delete_branch, force)?;
 
     if let (Some(toplevel), Some(path)) = (toplevel, cwd_worktree)
         && removed.iter().any(|p| p == path)

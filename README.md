@@ -99,9 +99,9 @@ arbor init --inject
 | `arbor list [--all] [--json] [--short]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. `--short` hides the path column. |
 | `arbor remove [branch] [-f] [-d]` | `rm` | Remove a worktree. With no argument, shows an interactive fuzzy selector. Use `.` to remove the current worktree. `-f` forces removal of dirty worktrees. `-d` also deletes the local branch. |
 | `arbor dir [branch]` | | Print the worktree path for a branch. With no argument, shows an interactive fuzzy selector. Accepts both `feature/auth` and `feature-auth`. |
-| `arbor clone <url> [--no-worktree] [--no-hooks]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. `--no-hooks` skips post-create hooks. |
+| `arbor clone <url> [--no-worktree] [--hooks]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. Post-create hooks from the cloned repo are skipped and listed unless `--hooks` is passed. |
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
-| `arbor clean [-d]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. |
+| `arbor clean [-d] [-f]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. Worktrees with uncommitted changes are left in place unless `-f` / `--force` is passed. |
 | `arbor prune` | | Remove stale worktree references. |
 | `arbor init [shell] [--inject]` | | Set up shell integration (cd wrapper + completions). Auto-detects shell from `$SHELL`. `--inject` writes to your shell config non-interactively. |
 
@@ -131,7 +131,7 @@ repos_dir = "~/.arbor/repos"
 worktree_dir = "~/.arbor/worktrees"
 ```
 
-Change these to store worktrees and bare repos somewhere else. You can also override the worktree directory per-project — see [Per-project worktree directory](#per-project-worktree-directory) below.
+Change these to store worktrees and bare repos somewhere else. Relative paths are resolved against `~/.arbor`. You can also override the worktree directory per-project — see [Per-project worktree directory](#per-project-worktree-directory) below.
 
 ## Per-project worktree directory
 
@@ -146,17 +146,14 @@ This creates worktrees at `<project-root>/.claude/worktrees/<branch>` instead
 of the global default. Useful for keeping worktrees colocated with the project
 (e.g. for Claude Code parallel sessions).
 
-**Path resolution:**
+The path is resolved from the repository root, and there is no `<repo-name>`
+subdirectory — the config is already scoped to one project.
 
-| Value | Resolves to |
-| --- | --- |
-| `.claude/worktrees` | `<repo-root>/.claude/worktrees/<branch>` |
-| `~/my-worktrees` | `$HOME/my-worktrees/<branch>` |
-| `/tmp/worktrees` | `/tmp/worktrees/<branch>` |
-
-Relative paths are resolved from the repository root. When using the local
-override, there is no `<repo-name>` subdirectory — the config is already
-scoped to one project.
+Because `.arbor.toml` comes from the repo, only relative paths inside the
+working tree are used: absolute paths, `~`, `..` and the `.git` directory are
+ignored with a note, and the global default applies. To put worktrees elsewhere,
+set `worktree_dir` in `~/.arbor/config.toml`. Bare repos (as created by
+`arbor clone`) have no working tree, so they always use the global default.
 
 ## Hooks
 
@@ -184,6 +181,8 @@ Hooks run inside the new worktree directory with these environment variables ava
 | `ARBOR_EVENT` | Hook event name (`post_create`) |
 
 Hook output streams to stderr so it doesn't interfere with `cd $(arbor add ...)` piping. If a hook fails, arbor prints a warning and continues — the worktree is still created.
+
+Hooks are commands from the repo itself, so review `.arbor.toml` before running `arbor add` on a branch you don't trust, such as someone else's pull request. `arbor clone` doesn't run the cloned repo's hooks: it lists them so you can review them, and `arbor clone --hooks` runs them.
 
 To skip hooks for a single invocation, pass `--no-hooks`:
 

@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::Context;
 use serde::Deserialize;
 
-use crate::{config, display, git};
+use crate::{display, git};
 
 #[derive(Debug, Deserialize)]
 struct ProjectConfig {
@@ -40,6 +40,20 @@ pub struct HookContext {
     pub repo_name: String,
 }
 
+impl HookContext {
+    fn env_vars(&self) -> [(&'static str, String); 4] {
+        [
+            (
+                "ARBOR_WORKTREE",
+                self.worktree_path.to_string_lossy().into_owned(),
+            ),
+            ("ARBOR_BRANCH", self.branch.clone()),
+            ("ARBOR_REPO", self.repo_name.clone()),
+            ("ARBOR_EVENT", "post_create".to_string()),
+        ]
+    }
+}
+
 fn load_project_config(worktree_path: &Path) -> anyhow::Result<Option<ProjectConfig>> {
     let config_path = worktree_path.join(".arbor.toml");
     if !config_path.exists() {
@@ -66,7 +80,7 @@ fn stderr_as_stdio() -> std::io::Result<Stdio> {
     Ok(owned.into())
 }
 
-fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(String, String)]) -> anyhow::Result<()> {
+fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(&str, String)]) -> anyhow::Result<()> {
     let stdout_redirect = stderr_as_stdio()?;
 
     let shell = if cfg!(windows) { "cmd" } else { "sh" };
@@ -82,20 +96,39 @@ fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(String, String)]) -> any
 
     let status = command.status()?;
     if !status.success() {
-        anyhow::bail!("Hook failed: {cmd} ({status})");
+        anyhow::bail!("Hook failed: {} ({status})", one_line(cmd));
     }
     Ok(())
 }
 
-pub fn resolve_worktree_dir(raw: &str, repo_root: &Path) -> anyhow::Result<PathBuf> {
+/// The worktree root a repo's own `.arbor.toml` asks for. Only a relative path inside the
+/// working tree is used: anything else could place repo content where it gets executed.
+pub fn repo_worktree_dir(raw: &str, repo_root: &Path, bare: bool) -> Option<PathBuf> {
     let path = Path::new(raw);
-    if path.is_absolute() {
-        Ok(path.to_path_buf())
-    } else if raw.starts_with('~') {
-        config::expand_tilde(path)
-    } else {
-        Ok(repo_root.join(raw))
+    let stays_inside = !raw.starts_with('~')
+        && path
+            .components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+    let enters_git_dir = path
+        .components()
+        .find_map(|c| match c {
+            Component::Normal(name) => Some(name),
+            _ => None,
+        })
+        .is_some_and(|first| first.eq_ignore_ascii_case(".git"));
+
+    if !stays_inside || enters_git_dir {
+        display::print_note(&format!(
+            "Ignored worktree_dir {raw} from .arbor.toml: only relative paths inside the \
+             repo are used. Set worktree_dir in ~/.arbor/config.toml for other locations"
+        ));
+        return None;
     }
+    // A bare repo has no working tree; anything inside it is the git dir itself.
+    if bare {
+        return None;
+    }
+    Some(repo_root.join(path))
 }
 
 pub fn load_worktree_dir_from_path(dir: &Path) -> anyhow::Result<Option<String>> {
@@ -116,33 +149,59 @@ pub fn load_worktree_dir_from_git(cwd: &Path) -> anyhow::Result<Option<String>> 
     Ok(config.worktree_dir)
 }
 
-pub fn run_post_create(ctx: &HookContext) {
-    let config = match load_project_config(&ctx.worktree_path) {
-        Ok(Some(config)) => config,
-        Ok(None) => return,
+fn load_post_create_commands(worktree_path: &Path) -> anyhow::Result<Vec<String>> {
+    Ok(load_project_config(worktree_path)?
+        .and_then(|config| config.hooks.post_create)
+        .map(HookCommands::into_vec)
+        .unwrap_or_default())
+}
+
+// A newline inside a hook command could print a line that passes for arbor's own output.
+fn one_line(cmd: &str) -> String {
+    cmd.replace('\n', "\\n")
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
+}
+
+pub fn note_skipped_post_create(ctx: &HookContext) {
+    let commands = match load_post_create_commands(&ctx.worktree_path) {
+        Ok(commands) if !commands.is_empty() => commands,
+        Ok(_) => return,
         Err(e) => {
             display::print_error(&format!("Failed to load .arbor.toml: {e}"));
             return;
         }
     };
 
-    let commands = match config.hooks.post_create {
-        Some(cmds) => cmds.into_vec(),
-        None => return,
+    let exports: Vec<String> = ctx
+        .env_vars()
+        .iter()
+        .map(|(key, value)| format!("{key}={}", shell_quote(value)))
+        .collect();
+    display::print_note(
+        "Skipped post_create hooks from the cloned repo (pass --hooks to run them). \
+         To run them yourself after reviewing them, from the new worktree:",
+    );
+    display::print_hint(&format!("export {}", exports.join(" ")));
+    for cmd in &commands {
+        display::print_hint(&one_line(cmd));
+    }
+}
+
+pub fn run_post_create(ctx: &HookContext) {
+    let commands = match load_post_create_commands(&ctx.worktree_path) {
+        Ok(commands) => commands,
+        Err(e) => {
+            display::print_error(&format!("Failed to load .arbor.toml: {e}"));
+            return;
+        }
     };
 
-    let env_vars = vec![
-        (
-            "ARBOR_WORKTREE".to_string(),
-            ctx.worktree_path.to_string_lossy().into_owned(),
-        ),
-        ("ARBOR_BRANCH".to_string(), ctx.branch.clone()),
-        ("ARBOR_REPO".to_string(), ctx.repo_name.clone()),
-        ("ARBOR_EVENT".to_string(), "post_create".to_string()),
-    ];
-
+    let env_vars = ctx.env_vars();
     for cmd in &commands {
-        display::print_note(&format!("Running hook: {cmd}"));
+        display::print_note(&format!("Running hook: {}", one_line(cmd)));
         if let Err(e) = run_hook_command(cmd, &ctx.worktree_path, &env_vars) {
             display::print_error(&format!("{e}"));
         }
@@ -228,22 +287,42 @@ post_create = "npm install"
     }
 
     #[test]
-    fn resolve_absolute_worktree_dir() {
-        let result = resolve_worktree_dir("/tmp/worktrees", Path::new("/some/repo")).unwrap();
-        assert_eq!(result, PathBuf::from("/tmp/worktrees"));
+    fn repo_worktree_dir_accepts_paths_inside_the_working_tree() {
+        let root = Path::new("/some/repo");
+        assert_eq!(
+            repo_worktree_dir(".claude/worktrees", root, false),
+            Some(root.join(".claude/worktrees"))
+        );
+        assert_eq!(
+            repo_worktree_dir("./wt", root, false),
+            Some(root.join("./wt"))
+        );
     }
 
     #[test]
-    fn resolve_tilde_worktree_dir() {
-        let home = std::env::home_dir().unwrap();
-        let result = resolve_worktree_dir("~/custom/wt", Path::new("/some/repo")).unwrap();
-        assert_eq!(result, home.join("custom/wt"));
+    fn repo_worktree_dir_rejects_paths_that_leave_the_working_tree() {
+        let root = Path::new("/some/repo");
+        for raw in [
+            "~",
+            "~/bin",
+            "../outside",
+            "wt/../../outside",
+            ".git",
+            ".GIT/hooks",
+        ] {
+            assert_eq!(repo_worktree_dir(raw, root, false), None, "{raw}");
+        }
+        let absolute = std::env::temp_dir().join("wt");
+        assert_eq!(
+            repo_worktree_dir(&absolute.to_string_lossy(), root, false),
+            None
+        );
     }
 
     #[test]
-    fn resolve_relative_worktree_dir() {
-        let result = resolve_worktree_dir(".claude/worktrees", Path::new("/some/repo")).unwrap();
-        assert_eq!(result, PathBuf::from("/some/repo/.claude/worktrees"));
+    fn repo_worktree_dir_is_never_used_in_a_bare_repo() {
+        assert_eq!(repo_worktree_dir(".", Path::new("/r.git"), true), None);
+        assert_eq!(repo_worktree_dir("wt", Path::new("/r.git"), true), None);
     }
 
     #[test]

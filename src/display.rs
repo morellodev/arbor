@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -109,28 +110,62 @@ fn find_current_index(entries: &[WorktreeInfo]) -> Option<usize> {
     innermost_containing(&cwd, entries.iter().map(|wt| wt.path.as_path()))
 }
 
+// Messages often carry repo-supplied text (hook commands, branch names, paths), which
+// must not be able to rewrite or hide terminal output, e.g. with `\r` plus erase-line.
+fn is_hidden(c: char) -> bool {
+    (c.is_control() && c != '\n' && c != '\t')
+        || matches!(
+            c,
+            '\u{061C}'
+                | '\u{200B}'..='\u{200F}'
+                | '\u{2028}'..='\u{202E}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{2066}'..='\u{2069}'
+                | '\u{FEFF}'
+        )
+}
+
+fn sanitize(text: &str) -> Cow<'_, str> {
+    if !text.chars().any(is_hidden) {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        if is_hidden(c) {
+            out.extend(c.escape_unicode());
+        } else {
+            out.push(c);
+        }
+    }
+    Cow::Owned(out)
+}
+
 pub fn print_ok(msg: &str) {
-    eprintln!("{} {msg}", "✓".green().bold());
+    eprintln!("{} {}", "✓".green().bold(), sanitize(msg));
 }
 
 pub fn print_error(msg: &str) {
-    eprintln!("{} {msg}", "✗".red().bold());
+    eprintln!("{} {}", "✗".red().bold(), sanitize(msg));
 }
 
 pub fn print_note(msg: &str) {
+    note_line(&sanitize(msg));
+}
+
+fn note_line(msg: &str) {
     eprintln!("{} {msg}", "▸".dimmed());
 }
 
 pub fn print_heading(text: &str) {
-    eprintln!("{}", text.bold());
+    eprintln!("{}", sanitize(text).bold());
 }
 
 pub fn print_section(name: &str) {
-    eprintln!("{}{}", "# ".bold(), name.bold());
+    eprintln!("{}{}", "# ".bold(), sanitize(name).bold());
 }
 
 pub fn print_hint(text: &str) {
-    eprintln!("  {}", text.dimmed());
+    eprintln!("  {}", sanitize(text).dimmed());
 }
 
 pub fn print_cd_hint(path: &Path) {
@@ -157,7 +192,7 @@ pub fn shorten_path(path: &Path) -> String {
 
 fn colored_branch(entry: &WorktreeInfo) -> String {
     match &entry.branch {
-        Some(name) => name.bold().to_string(),
+        Some(name) => sanitize(name).bold().to_string(),
         None => "(detached)".yellow().to_string(),
     }
 }
@@ -187,7 +222,7 @@ fn colored_tracking(entry: &WorktreeInfo) -> String {
 
 fn branch_visible_len(entry: &WorktreeInfo) -> usize {
     match &entry.branch {
-        Some(name) => name.len(),
+        Some(name) => sanitize(name).chars().count(),
         None => "(detached)".len(),
     }
 }
@@ -209,7 +244,7 @@ pub fn format_worktree_items(entries: &[WorktreeInfo]) -> Vec<String> {
             let pad = max_branch - branch_visible_len(entry);
             let state = colored_state(entry);
             let tracking = colored_tracking(entry);
-            let path = shorten_path(&entry.path).dimmed().to_string();
+            let path = sanitize(&shorten_path(&entry.path)).dimmed().to_string();
 
             format!(
                 "{marker}{branch}{}  {state}  {tracking}  {path}",
@@ -291,7 +326,7 @@ fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
 
     format!(
         "{} {} {} {} ({})",
-        label.bold(),
+        sanitize(label).bold(),
         "—".dimmed(),
         summary.total,
         plural(summary.total, "worktree", "worktrees"),
@@ -303,7 +338,7 @@ pub fn print_fetch_summary(success: usize, failed: usize) {
     let total = success + failed;
     let noun = plural(total, "repository", "repositories");
     if failed > 0 {
-        print_note(&format!(
+        note_line(&format!(
             "Fetched {success}/{total} {noun} ({} failed)",
             failed.to_string().red()
         ));
@@ -380,7 +415,7 @@ fn build_table(entries: &[WorktreeInfo], show_paths: bool) -> Table {
             colored_tracking(entry),
         ];
         if show_paths {
-            row.push(shorten_path(&entry.path).dimmed().to_string());
+            row.push(sanitize(&shorten_path(&entry.path)).dimmed().to_string());
         }
         table.add_row(row);
     }
@@ -391,6 +426,18 @@ fn build_table(entries: &[WorktreeInfo], show_paths: bool) -> Table {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sanitize_reveals_hidden_characters() {
+        assert_eq!(
+            sanitize("touch x #\r\u{1b}[2K  npm install"),
+            "touch x #\\u{d}\\u{1b}[2K  npm install"
+        );
+        assert_eq!(sanitize("a\u{202E}b"), "a\\u{202e}b");
+        assert_eq!(sanitize("cp \"a b\" c"), "cp \"a b\" c");
+        assert_eq!(sanitize("line one\n\tline two"), "line one\n\tline two");
+        assert_eq!(sanitize("a\u{2028}b\u{061C}c"), "a\\u{2028}b\\u{61c}c");
+    }
 
     #[test]
     fn plural_picks_singular_only_for_one() {

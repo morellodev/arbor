@@ -64,9 +64,13 @@ fn run(cli: Cli) -> Result<()> {
         Command::Clone {
             ref url,
             no_worktree,
-            no_hooks,
-        } => commands::clone(&config, url, no_worktree, no_hooks),
-        Command::Clean { delete_branch } => commands::clean(delete_branch),
+            hooks,
+            ..
+        } => commands::clone(&config, url, no_worktree, hooks),
+        Command::Clean {
+            delete_branch,
+            force,
+        } => commands::clean(delete_branch, force),
         Command::Prune => commands::prune(),
         Command::Fetch { all } => commands::fetch(&config, all),
         Command::Init { ref shell, inject } => commands::init(shell.as_deref(), inject),

@@ -223,3 +223,31 @@ fn add_rejects_existing_non_worktree_dir() {
         "should refuse a stray directory, got: {stderr}"
     );
 }
+
+#[test]
+fn add_resolves_relative_config_worktree_dir_against_arbor_dir() {
+    let env = TestEnv::new();
+    let repos = env.home.path().join(".arbor/repos");
+    std::fs::write(
+        env.home.path().join(".arbor/config.toml"),
+        format!(
+            "worktree_dir = \"wts\"\nrepos_dir = \"{}\"\n",
+            repos.to_string_lossy().replace('\\', "/")
+        ),
+    )
+    .unwrap();
+    let subdir = env.repo.path().join("sub");
+    std::fs::create_dir(&subdir).unwrap();
+
+    let output = env.arbor_in(&subdir, &["add", "feat"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "add should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        Path::new(&stdout_path(&output)).starts_with(env.home.path().join(".arbor/wts")),
+        "worktree should be under ~/.arbor/wts, got: {}",
+        stdout_path(&output)
+    );
+}

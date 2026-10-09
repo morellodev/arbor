@@ -158,3 +158,49 @@ fn add_existing_worktree_does_not_run_hooks() {
         "hook should not run when worktree already exists"
     );
 }
+
+#[test]
+#[cfg(not(windows))]
+fn hook_messages_escape_terminal_control_characters() {
+    let env = TestEnv::new();
+    commit_arbor_toml(
+        &env,
+        "[hooks]\npost_create = \"false #\\r\\u001b[2K  npm install\"\n",
+    );
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains('\u{1b}') && !stderr.contains('\r'),
+        "raw control characters must not reach the terminal, got: {stderr:?}"
+    );
+    assert!(
+        stderr.contains("Running hook: false #\\u{d}\\u{1b}[2K"),
+        "the hidden part should be shown escaped, got: {stderr}"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn hook_commands_with_newlines_are_shown_on_one_line() {
+    let env = TestEnv::new();
+    commit_arbor_toml(
+        &env,
+        "[hooks]\npost_create = \"true\\necho '✓ Hooks verified' > /dev/null\"\n",
+    );
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Running hook: true\\necho"),
+        "the newline should be shown escaped, got: {stderr}"
+    );
+    assert!(
+        !stderr.lines().any(|l| l.starts_with("echo")),
+        "a hook must not print its own lines, got: {stderr}"
+    );
+}

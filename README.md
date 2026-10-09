@@ -131,7 +131,7 @@ repos_dir = "~/.arbor/repos"
 worktree_dir = "~/.arbor/worktrees"
 ```
 
-Change these to store worktrees and bare repos somewhere else. You can also override the worktree directory per-project — see [Per-project worktree directory](#per-project-worktree-directory) below.
+Change these to store worktrees and bare repos somewhere else. Relative paths are resolved against `~/.arbor`. You can also override the worktree directory per-project — see [Per-project worktree directory](#per-project-worktree-directory) below.
 
 ## Per-project worktree directory
 

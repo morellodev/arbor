@@ -46,8 +46,9 @@ impl Config {
         let mut config: Config =
             toml::from_str(&raw).with_context(|| "Failed to parse config.toml")?;
 
-        config.worktree_dir = expand_tilde(&config.worktree_dir)?;
-        config.repos_dir = expand_tilde(&config.repos_dir)?;
+        // Relative to the config dir; relative to the cwd they'd move between invocations.
+        config.worktree_dir = resolve_path(&config.worktree_dir, &config_dir)?;
+        config.repos_dir = resolve_path(&config.repos_dir, &config_dir)?;
 
         Ok(config)
     }
@@ -56,6 +57,11 @@ impl Config {
 fn config_dir() -> Result<PathBuf> {
     let home = std::env::home_dir().context("Could not determine home directory")?;
     Ok(home.join(CONFIG_DIR_NAME))
+}
+
+/// Expands `~` and anchors relative paths to `base` (`join` keeps absolute paths as they are).
+fn resolve_path(path: &Path, base: &Path) -> Result<PathBuf> {
+    Ok(base.join(expand_tilde(path)?))
 }
 
 pub(crate) fn expand_tilde(path: &Path) -> Result<PathBuf> {
@@ -107,6 +113,20 @@ mod tests {
     fn expand_tilde_relative_path_unchanged() {
         let result = expand_tilde(Path::new("some/relative/path")).unwrap();
         assert_eq!(result, PathBuf::from("some/relative/path"));
+    }
+
+    #[test]
+    fn resolve_path_anchors_relative_paths_to_base() {
+        let config_dir = Path::new("/home/me/.arbor");
+        let result = resolve_path(Path::new("worktrees"), config_dir).unwrap();
+        assert_eq!(result, PathBuf::from("/home/me/.arbor/worktrees"));
+    }
+
+    #[test]
+    fn resolve_path_keeps_absolute_paths() {
+        let absolute = std::env::temp_dir().join("worktrees");
+        let result = resolve_path(&absolute, Path::new("/home/me/.arbor")).unwrap();
+        assert_eq!(result, absolute);
     }
 
     #[test]

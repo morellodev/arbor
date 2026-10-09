@@ -70,6 +70,16 @@ pub struct WorktreeInfo {
     pub branch: Option<String>,
     pub dirty: bool,
     pub tracking: Option<Tracking>,
+    #[serde(skip)]
+    pub main: bool,
+    #[serde(skip)]
+    pub in_progress: Option<InProgress>,
+}
+
+/// A rebase or bisect that detached HEAD, and the branch it returns to.
+pub struct InProgress {
+    pub operation: &'static str,
+    pub branch: Option<String>,
 }
 
 fn serialize_path<S: serde::Serializer>(path: &Path, s: S) -> Result<S::Ok, S::Error> {

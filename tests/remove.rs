@@ -52,33 +52,76 @@ fn remove_with_delete_branch_resolves_sanitized_name() {
 }
 
 #[test]
-fn remove_force_delete_unmerged_branch() {
+fn remove_force_keeps_unmerged_branch() {
     let env = TestEnv::new();
     let wt_path = env.add_worktree("unmerged");
-
-    // Make a commit in the worktree so the branch diverges
     git_cmd(
         Path::new(&wt_path),
         &["commit", "--allow-empty", "-m", "wip"],
         env.home.path(),
     );
+    fs::write(Path::new(&wt_path).join("dirty.txt"), "x").unwrap();
 
-    // Force-remove the worktree and delete the unmerged branch
     let rm_out = env
         .arbor(&["remove", "unmerged", "-f", "-d"])
         .output()
         .unwrap();
-    assert!(rm_out.status.success());
 
+    assert!(
+        !Path::new(&wt_path).exists(),
+        "--force removes the dirty worktree"
+    );
     let stderr = String::from_utf8_lossy(&rm_out.stderr);
     assert!(
-        stderr.contains("Deleted branch"),
-        "should force-delete the branch, got: {stderr}"
+        stderr.contains("Could not delete branch 'unmerged'"),
+        "an unmerged branch must survive --force, got: {stderr}"
     );
+    git_cmd(
+        env.repo.path(),
+        &["show-ref", "--verify", "refs/heads/unmerged"],
+        env.home.path(),
+    );
+}
+
+/// Stops an interactive rebase right away, leaving HEAD detached and the tree clean.
+fn start_rebase(dir: &Path, home: &Path) {
+    let mut cmd = std::process::Command::new("git");
+    cmd.args(["rebase", "-i", "HEAD"])
+        .current_dir(dir)
+        .env("HOME", home)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", home.join(".gitconfig"))
+        .env("GIT_SEQUENCE_EDITOR", "echo break >");
     assert!(
-        stderr.contains("(was "),
-        "should print commit hash for force-deleted branch, got: {stderr}"
+        cmd.output().unwrap().status.success(),
+        "setup: rebase should stop"
     );
+}
+
+#[test]
+fn remove_refuses_worktree_mid_rebase() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("rebasing");
+    start_rebase(Path::new(&wt_path), env.home.path());
+
+    let output = env
+        .arbor_in(Path::new(&wt_path), &["remove", "."])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("rebase in progress"),
+        "expected a rebase warning, got: {stderr}"
+    );
+    assert!(Path::new(&wt_path).exists());
+
+    let forced = env
+        .arbor_in(Path::new(&wt_path), &["remove", ".", "--force"])
+        .output()
+        .unwrap();
+    assert!(forced.status.success());
+    assert!(!Path::new(&wt_path).exists());
 }
 
 #[test]

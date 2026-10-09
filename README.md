@@ -97,11 +97,11 @@ arbor init --inject
 | `arbor add <branch> [-b <base>] [--no-hooks]` | | Create a worktree. Checks out an existing local branch, tracks a remote branch, or creates a new one. `-b` / `--base` starts the new branch from a specific ref (branch, tag, or commit). `--no-hooks` skips post-create hooks. |
 | `arbor switch [branch]` | `cd` | Switch to an existing worktree. With no argument, shows an interactive fuzzy selector. |
 | `arbor list [--all] [--json] [--short]` | `ls` | List worktrees for the current repo. `--all` lists across all repos. `--json` for machine-readable output. `--short` hides the path column. |
-| `arbor remove [branch] [-f] [-d]` | `rm` | Remove a worktree. With no argument, shows an interactive fuzzy selector. Use `.` to remove the current worktree. `-f` forces removal of dirty worktrees. `-d` also deletes the local branch. |
+| `arbor remove [branch] [-f] [-d]` | `rm` | Remove a worktree. With no argument, shows an interactive fuzzy selector. Use `.` to remove the current worktree. `-f` forces removal of dirty or mid-rebase worktrees. `-d` also deletes the local branch if it is merged. |
 | `arbor dir [branch]` | | Print the worktree path for a branch. With no argument, shows an interactive fuzzy selector. Accepts both `feature/auth` and `feature-auth`. |
 | `arbor clone <url> [--no-worktree] [--hooks]` | | Clone as a bare repo and create a worktree for the default branch. Supports `user/repo` shorthand for GitHub. Post-create hooks from the cloned repo are skipped and listed unless `--hooks` is passed. |
 | `arbor fetch [--all]` | | Fetch from origin in the current bare repo. `--all` fetches across all repos. |
-| `arbor clean [-d] [-f]` | | Interactively select and remove unused worktrees. `-d` also deletes local branches. Worktrees with uncommitted changes are left in place unless `-f` / `--force` is passed. |
+| `arbor clean [-d] [-f]` | | Interactively select and remove unused worktrees. `-d` also deletes merged local branches. The main worktree is never offered, and worktrees with uncommitted changes or a rebase or bisect in progress are left in place unless `-f` / `--force` is passed. |
 | `arbor prune` | | Remove stale worktree references. |
 | `arbor init [shell] [--inject]` | | Set up shell integration (cd wrapper + completions). Auto-detects shell from `$SHELL`. `--inject` writes to your shell config non-interactively. |
 

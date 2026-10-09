@@ -8,7 +8,7 @@ use crate::git::WorktreeInfo;
 use crate::{display, git};
 
 fn is_abandoned(wt: &WorktreeInfo) -> bool {
-    wt.branch.is_none() && !wt.dirty && wt.tracking.is_none()
+    wt.branch.is_none() && !wt.dirty && wt.tracking.is_none() && wt.in_progress.is_none()
 }
 
 fn remove_worktrees(
@@ -24,13 +24,27 @@ fn remove_worktrees(
         let wt = &worktrees[idx];
         let short_path = display::shorten_path(&wt.path);
 
+        // `git worktree remove` doesn't refuse a rebase or bisect in progress.
+        if !force && let Some(op) = &wt.in_progress {
+            let label = wt
+                .branch
+                .as_deref()
+                .or(op.branch.as_deref())
+                .unwrap_or(&short_path);
+            display::print_error(&format!(
+                "Skipped {label}: a {} is in progress. Use --force to remove it anyway.",
+                op.operation
+            ));
+            continue;
+        }
+
         match git::worktree_remove(&wt.path, force) {
             Ok(()) => {
                 display::print_ok(&format!("Removed {short_path}"));
                 removed_paths.push(wt.path.clone());
 
                 if delete_branch && let Some(branch) = &wt.branch {
-                    match git::delete_branch(branch, false, None) {
+                    match git::delete_branch(branch, None) {
                         Ok(_) => {
                             display::print_ok(&format!("Deleted branch '{branch}'"));
                             branches_deleted += 1;
@@ -77,9 +91,12 @@ pub fn run(delete_branch: bool, force: bool) -> Result<()> {
 
     git::worktree_prune()?;
 
-    let worktrees = git::worktree_infos(None)?;
+    let worktrees: Vec<_> = git::worktree_infos(None)?
+        .into_iter()
+        .filter(|wt| !wt.main)
+        .collect();
 
-    if worktrees.len() <= 1 {
+    if worktrees.is_empty() {
         display::print_ok("Nothing to clean");
         return Ok(());
     }
@@ -134,7 +151,7 @@ pub fn run(delete_branch: bool, force: bool) -> Result<()> {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::git::Tracking;
+    use crate::git::{InProgress, Tracking};
 
     use super::*;
 
@@ -148,6 +165,8 @@ mod tests {
             branch: branch.map(String::from),
             dirty,
             tracking,
+            main: false,
+            in_progress: None,
         }
     }
 
@@ -155,6 +174,16 @@ mod tests {
     fn detached_clean_no_upstream_is_abandoned() {
         let wt = make_worktree(None, false, None);
         assert!(is_abandoned(&wt));
+    }
+
+    #[test]
+    fn detached_mid_rebase_is_not_abandoned() {
+        let mut wt = make_worktree(None, false, None);
+        wt.in_progress = Some(InProgress {
+            operation: "rebase",
+            branch: Some("feat".into()),
+        });
+        assert!(!is_abandoned(&wt));
     }
 
     #[test]

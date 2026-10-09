@@ -84,10 +84,10 @@ Examples:
     Remove {
         /// Branch name to remove (interactive selection if omitted, '.' for current worktree)
         branch: Option<String>,
-        /// Force removal even if the worktree is dirty
+        /// Remove the worktree even if it is dirty or mid-rebase
         #[arg(long, short)]
         force: bool,
-        /// Also delete the local branch after removing the worktree
+        /// Also delete the local branch after removing the worktree, if it is merged
         #[arg(long, short)]
         delete_branch: bool,
     },
@@ -123,10 +123,10 @@ Examples:
 
     /// Interactively remove unused worktrees
     Clean {
-        /// Also delete local branches after removing worktrees
+        /// Also delete local branches after removing worktrees, if they are merged
         #[arg(long, short)]
         delete_branch: bool,
-        /// Also remove selected worktrees that have uncommitted changes
+        /// Also remove selected worktrees that are dirty or mid-rebase
         #[arg(long, short)]
         force: bool,
     },

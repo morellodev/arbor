@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -6,7 +7,7 @@ use super::runner::{
     run_git, run_git_inherited, run_git_output, run_git_output_with_env, run_git_with_input,
 };
 use super::types::{
-    PrunedWorktree, Tracking, WorktreeInfo, parse_prune_output, parse_worktree_list,
+    InProgress, PrunedWorktree, Tracking, WorktreeInfo, parse_prune_output, parse_worktree_list,
     sanitize_branch,
 };
 
@@ -181,15 +182,36 @@ pub fn head_branch(repo_path: &Path) -> Result<String> {
         .to_string())
 }
 
-pub fn delete_branch(branch: &str, force: bool, cwd: Option<&Path>) -> Result<String> {
-    let flag = if force { "-D" } else { "-d" };
-    run_git(&["branch", flag, branch], cwd)
+/// Refuses unmerged branches: removing the worktree also dropped its reflog.
+pub fn delete_branch(branch: &str, cwd: Option<&Path>) -> Result<String> {
+    run_git(&["branch", "-d", branch], cwd)
 }
 
 pub fn is_worktree_dirty(path: &Path) -> bool {
     status_porcelain(path)
         .map(|s| !s.is_empty())
         .unwrap_or(false)
+}
+
+pub fn operation_in_progress(worktree: &Path) -> Option<InProgress> {
+    let git_dir =
+        PathBuf::from(run_git(&["rev-parse", "--absolute-git-dir"], Some(worktree)).ok()?);
+    let (operation, head) = [
+        ("rebase", "rebase-merge/head-name"),
+        ("rebase", "rebase-apply/head-name"),
+        ("bisect", "BISECT_START"),
+    ]
+    .into_iter()
+    .find_map(|(operation, file)| {
+        Some((operation, fs::read_to_string(git_dir.join(file)).ok()?))
+    })?;
+    // A rebase of a detached HEAD records "detached HEAD", a bisect records the commit.
+    let head = head.trim();
+    let name = head.strip_prefix("refs/heads/").unwrap_or(head);
+    let branch = local_branch_exists(name, Some(worktree))
+        .unwrap_or(false)
+        .then(|| name.to_string());
+    Some(InProgress { operation, branch })
 }
 
 pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
@@ -214,18 +236,22 @@ fn infos_from_porcelain(porcelain: &str) -> Vec<WorktreeInfo> {
     let entries = parse_worktree_list(porcelain);
 
     let mut results = Vec::new();
-    for entry in entries {
+    for (i, entry) in entries.into_iter().enumerate() {
         if entry.bare {
             continue;
         }
 
         let tracking = ahead_behind(&entry.path);
         let dirty = is_worktree_dirty(&entry.path);
+        // Checked on attached worktrees too: `bisect start --no-checkout` keeps HEAD on the branch.
+        let in_progress = operation_in_progress(&entry.path);
         results.push(WorktreeInfo {
             path: entry.path,
             branch: entry.branch,
             dirty,
             tracking,
+            main: i == 0,
+            in_progress,
         });
     }
 

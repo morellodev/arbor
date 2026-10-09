@@ -59,8 +59,17 @@ fn remove_worktree(
     force: bool,
     delete_branch: bool,
 ) -> Result<()> {
-    if !force && git::is_worktree_dirty(wt_path) {
-        bail!("Worktree has uncommitted changes. Use --force to remove anyway.");
+    if !force {
+        if git::is_worktree_dirty(wt_path) {
+            bail!("Worktree has uncommitted changes. Use --force to remove anyway.");
+        }
+        // `git worktree remove` doesn't refuse a rebase or bisect in progress.
+        if let Some(op) = git::operation_in_progress(wt_path) {
+            bail!(
+                "Worktree has a {} in progress. Use --force to remove anyway.",
+                op.operation
+            );
+        }
     }
 
     let toplevel = display::escape_dir_if_cwd_inside(wt_path)?;
@@ -74,7 +83,7 @@ fn remove_worktree(
 
     if delete_branch {
         if let Some(branch) = actual_branch {
-            match git::delete_branch(branch, force, toplevel.as_deref()) {
+            match git::delete_branch(branch, toplevel.as_deref()) {
                 Ok(output) => {
                     let hash = parse_was_hash(&output);
                     let suffix = hash.map_or(String::new(), |h| format!(" (was {h})"));

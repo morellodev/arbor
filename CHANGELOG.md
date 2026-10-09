@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0](https://github.com/morellodev/arbor/compare/v0.3.4...v0.4.0) - 2026-10-09
+
+### Fixed
+
+- [**breaking**] skip the cloned repo's post_create hooks unless --hooks is passed
+- [**breaking**] only honor a repo's worktree_dir when it stays inside the working tree
+- escape terminal control characters in repo-supplied text
+- treat only explicit local paths as clone sources and name them after their directory
+- find the subcommand after global flags in the shell wrapper and completions
+- leave dirty worktrees in place in clean unless --force is passed
+- only list repos_dir entries that are repositories themselves in --all
+- resolve relative paths in config.toml against the arbor config dir
+
+### Other
+
+- skip the control-character path test on windows
+
 ## [0.3.4](https://github.com/morellodev/arbor/compare/v0.3.3...v0.3.4) - 2026-10-09
 
 ### Fixed

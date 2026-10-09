@@ -27,11 +27,11 @@ jobs:
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install
       - uses: release-plz/action@v0.5
         with:
           command: release-pr
@@ -46,11 +46,11 @@ jobs:
       || contains(github.event.head_commit.message, 'release-plz-'))
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install
       - uses: release-plz/action@v0.5
         id: release-plz
         with:

@@ -54,14 +54,14 @@ impl Config {
 }
 
 fn config_dir() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("Could not determine home directory")?;
+    let home = std::env::home_dir().context("Could not determine home directory")?;
     Ok(home.join(CONFIG_DIR_NAME))
 }
 
 pub(crate) fn expand_tilde(path: &Path) -> Result<PathBuf> {
     let s = path.to_string_lossy();
     if let Some(stripped) = s.strip_prefix('~') {
-        let home = dirs::home_dir().context("Could not determine home directory")?;
+        let home = std::env::home_dir().context("Could not determine home directory")?;
         let rest = stripped
             .strip_prefix('/')
             .or_else(|| stripped.strip_prefix('\\'))
@@ -78,14 +78,14 @@ mod tests {
 
     #[test]
     fn expand_tilde_with_slash() {
-        let home = dirs::home_dir().unwrap();
+        let home = std::env::home_dir().unwrap();
         let result = expand_tilde(Path::new("~/.arbor/worktrees")).unwrap();
         assert_eq!(result, home.join(".arbor/worktrees"));
     }
 
     #[test]
     fn expand_tilde_bare() {
-        let home = dirs::home_dir().unwrap();
+        let home = std::env::home_dir().unwrap();
         let result = expand_tilde(Path::new("~")).unwrap();
         assert_eq!(result, home);
     }

@@ -117,7 +117,7 @@ pub fn print_path_hint(path: &Path) {
 }
 
 pub fn shorten_path(path: &Path) -> String {
-    if let Some(home) = dirs::home_dir()
+    if let Some(home) = std::env::home_dir()
         && let Ok(relative) = path.strip_prefix(&home)
     {
         return format!("~/{}", relative.display());
@@ -308,7 +308,7 @@ pub fn print_batch_summary(summaries: &[WorktreeSummary]) {
 fn new_table() -> Table {
     let mut table = Table::new();
     table
-        .load_preset(NOTHING)
+        .load_style(NOTHING)
         .set_content_arrangement(ContentArrangement::Dynamic);
     table
 }

@@ -32,8 +32,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v6
-      - run: rustup show
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
 
@@ -42,8 +42,8 @@ jobs:
     needs: guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - run: rustup show
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
-      - run: cargo clippy -- -D warnings
+      - run: cargo clippy --tests -- -D warnings

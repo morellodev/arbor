@@ -155,3 +155,19 @@ fn add_with_base_ignores_for_existing_branch() {
         "should warn that --base was ignored, got: {stderr}"
     );
 }
+
+#[test]
+fn add_branch_checked_out_elsewhere_returns_existing_path() {
+    let env = TestEnv::new();
+    let output = env.arbor(&["add", "main"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "add of an already checked-out branch should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        std::fs::canonicalize(stdout_path(&output)).unwrap(),
+        std::fs::canonicalize(env.repo.path()).unwrap(),
+        "should return the worktree that has the branch"
+    );
+}

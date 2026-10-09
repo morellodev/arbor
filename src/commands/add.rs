@@ -16,12 +16,27 @@ pub fn run(config: &Config, branch: &str, base: Option<&str>, no_hooks: bool) ->
     .to_string();
     let wt_path = resolve_wt_path(config, &repo_name, branch, &repo_root)?;
 
-    if wt_path.exists() {
+    let worktrees = git::parse_worktree_list(&git::worktree_list_porcelain(None)?);
+    let with_branch = worktrees
+        .iter()
+        .find(|wt| !wt.bare && wt.branch.as_deref() == Some(branch) && wt.path.exists());
+
+    let existing = match with_branch {
+        // git reports symlink-resolved paths; keep the configured spelling when it's the same dir.
+        Some(wt) if fs::canonicalize(&wt.path).ok() == fs::canonicalize(&wt_path).ok() => {
+            Some(wt_path.clone())
+        }
+        Some(wt) => Some(wt.path.clone()),
+        None if wt_path.exists() => Some(wt_path.clone()),
+        None => None,
+    };
+
+    if let Some(existing) = existing {
         display::print_note(&format!(
             "Already exists at {}",
-            display::shorten_path(&wt_path)
+            display::shorten_path(&existing)
         ));
-        display::print_path_hint(&wt_path);
+        display::print_path_hint(&existing);
         return Ok(());
     }
 

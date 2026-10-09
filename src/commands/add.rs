@@ -1,6 +1,6 @@
 use std::fs;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::config::Config;
 use crate::{display, git, hooks};
@@ -17,18 +17,30 @@ pub fn run(config: &Config, branch: &str, base: Option<&str>, no_hooks: bool) ->
     let wt_path = resolve_wt_path(config, &repo_name, branch, &repo_root)?;
 
     let worktrees = git::parse_worktree_list(&git::worktree_list_porcelain(None)?);
+    let canonical_wt_path = fs::canonicalize(&wt_path).ok();
+    let at_wt_path = worktrees.iter().find(|wt| {
+        canonical_wt_path.is_some() && fs::canonicalize(&wt.path).ok() == canonical_wt_path
+    });
     let with_branch = worktrees
         .iter()
         .find(|wt| !wt.bare && wt.branch.as_deref() == Some(branch) && wt.path.exists());
 
-    let existing = match with_branch {
-        // git reports symlink-resolved paths; keep the configured spelling when it's the same dir.
-        Some(wt) if fs::canonicalize(&wt.path).ok() == fs::canonicalize(&wt_path).ok() => {
-            Some(wt_path.clone())
-        }
-        Some(wt) => Some(wt.path.clone()),
-        None if wt_path.exists() => Some(wt_path.clone()),
-        None => None,
+    // A worktree at the expected path with no branch is mid-rebase/bisect or detached: still ours.
+    let existing = match (with_branch, at_wt_path) {
+        (Some(wt), Some(at)) if wt.path == at.path => Some(wt_path.clone()),
+        (Some(wt), _) => Some(wt.path.clone()),
+        (None, Some(at)) => match &at.branch {
+            None => Some(wt_path.clone()),
+            Some(other) => bail!(
+                "{} is already the worktree for '{other}'",
+                display::shorten_path(&wt_path)
+            ),
+        },
+        (None, None) if wt_path.exists() => bail!(
+            "{} already exists and is not a worktree",
+            display::shorten_path(&wt_path)
+        ),
+        (None, None) => None,
     };
 
     if let Some(existing) = existing {

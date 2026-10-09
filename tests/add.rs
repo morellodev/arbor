@@ -2,7 +2,7 @@ mod common;
 
 use std::path::Path;
 
-use common::{TestEnv, git, git_stdout, stdout_path};
+use common::{TestEnv, git, git_cmd, git_stdout, stdout_path};
 
 #[test]
 fn add_creates_worktree() {
@@ -169,5 +169,57 @@ fn add_branch_checked_out_elsewhere_returns_existing_path() {
         std::fs::canonicalize(stdout_path(&output)).unwrap(),
         std::fs::canonicalize(env.repo.path()).unwrap(),
         "should return the worktree that has the branch"
+    );
+}
+
+#[test]
+fn add_rejects_path_taken_by_another_branch() {
+    let env = TestEnv::new();
+    env.add_worktree("feature/auth");
+
+    let output = env.arbor(&["add", "feature-auth"]).output().unwrap();
+    assert!(
+        !output.status.success(),
+        "feature-auth must not reuse the feature/auth worktree"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("is already the worktree for 'feature/auth'"),
+        "should explain the collision, got: {stderr}"
+    );
+}
+
+#[test]
+fn add_detached_worktree_at_expected_path_returns_it() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("feat");
+    git_cmd(
+        Path::new(&wt_path),
+        &["checkout", "--detach"],
+        env.home.path(),
+    );
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "add should return the detached worktree, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(stdout_path(&output), wt_path);
+}
+
+#[test]
+fn add_rejects_existing_non_worktree_dir() {
+    let env = TestEnv::new();
+    let wt_path = env.add_worktree("feat");
+    env.arbor(&["rm", "feat"]).assert().success();
+    std::fs::create_dir_all(&wt_path).unwrap();
+
+    let output = env.arbor(&["add", "feat"]).output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("already exists and is not a worktree"),
+        "should refuse a stray directory, got: {stderr}"
     );
 }

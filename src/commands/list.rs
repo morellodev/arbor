@@ -75,7 +75,7 @@ fn list_repo(cwd: Option<&Path>, short: bool) -> Result<()> {
     let label = git::repo_name_or_unknown();
 
     let summary = display::summarize(&worktrees);
-    println!("{}", display::format_summary(&label, &summary));
+    display::print_summary(&label, &summary);
     display::print_table(&worktrees, !short);
     Ok(())
 }
@@ -96,7 +96,7 @@ fn list_all_repos(config: &Config, short: bool) -> Result<()> {
     for repo in &repos {
         display::print_section(&repo.display_name);
         let summary = display::summarize(&repo.worktrees);
-        println!("{}", display::format_summary("Summary", &summary));
+        display::print_summary("Summary", &summary);
         display::print_table(&repo.worktrees, !short);
         println!();
         summaries.push(summary);

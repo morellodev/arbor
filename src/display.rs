@@ -1,5 +1,6 @@
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Result, bail};
 use colored::Colorize;
@@ -8,20 +9,35 @@ use dialoguer::FuzzySelect;
 
 use crate::git::{self, Tracking, WorktreeInfo};
 
+static STDERR_COLOR: AtomicBool = AtomicBool::new(false);
+static STDOUT_COLOR: AtomicBool = AtomicBool::new(false);
+
 pub fn configure_color(mode: &crate::cli::ColorMode) {
     let no_color = std::env::var("NO_COLOR").is_ok_and(|v| !v.is_empty());
+    let force = std::env::var("CLICOLOR_FORCE").is_ok_and(|v| !v.is_empty() && v != "0");
+    let auto = |is_terminal: bool| !no_color && (force || is_terminal);
 
-    match mode {
-        crate::cli::ColorMode::Never => colored::control::set_override(false),
-        crate::cli::ColorMode::Always => colored::control::set_override(true),
-        crate::cli::ColorMode::Auto => {
-            if no_color {
-                colored::control::set_override(false);
-            } else if std::io::stderr().is_terminal() {
-                colored::control::set_override(true);
-            }
-        }
-    }
+    let (stderr, stdout) = match mode {
+        crate::cli::ColorMode::Never => (false, false),
+        crate::cli::ColorMode::Always => (true, true),
+        crate::cli::ColorMode::Auto => (
+            auto(std::io::stderr().is_terminal()),
+            auto(std::io::stdout().is_terminal()),
+        ),
+    };
+
+    STDERR_COLOR.store(stderr, Ordering::Relaxed);
+    STDOUT_COLOR.store(stdout, Ordering::Relaxed);
+    colored::control::set_override(stderr);
+}
+
+// `colored` has a single global switch, so output bound for stdout flips it to
+// the stdout setting while rendering.
+fn with_stdout_colors<T>(render: impl FnOnce() -> T) -> T {
+    colored::control::set_override(STDOUT_COLOR.load(Ordering::Relaxed));
+    let rendered = render();
+    colored::control::set_override(STDERR_COLOR.load(Ordering::Relaxed));
+    rendered
 }
 
 pub fn cwd_is_inside(cwd: &Path, worktree_path: &Path) -> bool {
@@ -247,7 +263,7 @@ pub fn plural<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
     if count == 1 { singular } else { plural }
 }
 
-pub fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
+fn format_summary(label: &str, summary: &WorktreeSummary) -> String {
     let mut parts = Vec::new();
 
     if summary.dirty > 0 {
@@ -327,7 +343,16 @@ fn new_table() -> Table {
     table
 }
 
+pub fn print_summary(label: &str, summary: &WorktreeSummary) {
+    println!("{}", with_stdout_colors(|| format_summary(label, summary)));
+}
+
 pub fn print_table(entries: &[WorktreeInfo], show_paths: bool) {
+    let table = with_stdout_colors(|| build_table(entries, show_paths));
+    println!("{table}");
+}
+
+fn build_table(entries: &[WorktreeInfo], show_paths: bool) -> Table {
     let current = find_current_index(entries);
     let mut table = new_table();
 
@@ -360,7 +385,7 @@ pub fn print_table(entries: &[WorktreeInfo], show_paths: bool) {
         table.add_row(row);
     }
 
-    println!("{table}");
+    table
 }
 
 #[cfg(test)]

@@ -11,8 +11,8 @@ pub fn run() -> Result<()> {
             display::print_note(&format!("Pruned '{}' ({})", entry.name, entry.reason));
         }
         let n = pruned.len();
-        let label = if n == 1 { "worktree" } else { "worktrees" };
-        display::print_ok(&format!("Pruned {n} stale {label}"));
+        let noun = display::plural(n, "worktree", "worktrees");
+        display::print_ok(&format!("Pruned {n} stale {noun}"));
     }
     Ok(())
 }

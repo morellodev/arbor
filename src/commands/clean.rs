@@ -53,13 +53,13 @@ fn remove_worktrees(
     let removed = removed_paths.len();
     if removed > 0 {
         let mut summary = format!(
-            "Cleaned {removed} worktree{}",
-            if removed == 1 { "" } else { "s" }
+            "Cleaned {removed} {}",
+            display::plural(removed, "worktree", "worktrees")
         );
         if branches_deleted > 0 {
             summary.push_str(&format!(
-                ", deleted {branches_deleted} branch{}",
-                if branches_deleted == 1 { "" } else { "es" }
+                ", deleted {branches_deleted} {}",
+                display::plural(branches_deleted, "branch", "branches")
             ));
         }
         display::print_ok(&summary);

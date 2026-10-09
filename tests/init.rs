@@ -353,22 +353,6 @@ fn init_inject_writes_fish_config_under_xdg_config_home() {
 }
 
 #[test]
-#[cfg(target_os = "macos")]
-fn init_inject_bash_uses_the_login_file_on_macos() {
-    let env = TestEnv::new();
-    fs::write(env.home.path().join(".profile"), "export A=1\n").unwrap();
-
-    let output = env.arbor(&["init", "bash", "--inject"]).output().unwrap();
-    assert!(output.status.success());
-    let profile = fs::read_to_string(env.home.path().join(".profile")).unwrap();
-    assert!(
-        profile.contains("arbor init bash"),
-        "login shells read the existing ~/.profile, got: {profile}"
-    );
-    assert!(!env.home.path().join(".bash_profile").exists());
-}
-
-#[test]
 #[cfg(not(windows))]
 fn init_inject_ignores_lines_that_only_mention_arbor_init() {
     let env = TestEnv::new();
@@ -492,16 +476,63 @@ fn init_inject_detects_dot_sourcing() {
 
 #[test]
 #[cfg(target_os = "macos")]
-fn init_inject_bash_finds_existing_setup_in_bashrc_on_macos() {
+fn init_inject_bash_covers_login_and_non_login_shells_on_macos() {
     let env = TestEnv::new();
-    fs::write(
-        env.home.path().join(".bashrc"),
-        "eval \"$(arbor init bash)\"\n",
-    )
-    .unwrap();
+    let home = env.home.path();
+    fs::write(home.join(".profile"), "export A=1\n").unwrap();
 
     let output = env.arbor(&["init", "bash", "--inject"]).output().unwrap();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("already configured"), "got: {stderr}");
-    assert!(!env.home.path().join(".bash_profile").exists());
+    assert!(output.status.success());
+    for file in [".bashrc", ".profile"] {
+        let content = fs::read_to_string(home.join(file)).unwrap();
+        assert!(
+            content.contains("arbor init bash"),
+            "{file} should load arbor, got: {content}"
+        );
+    }
+    assert!(
+        !home.join(".bash_profile").exists(),
+        "creating ~/.bash_profile would hide ~/.profile"
+    );
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn init_inject_bash_relies_on_a_login_file_that_sources_bashrc() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    let profile = "[ -f ~/.bashrc ] && . ~/.bashrc\n";
+    fs::write(home.join(".bash_profile"), profile).unwrap();
+
+    env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    assert!(
+        fs::read_to_string(home.join(".bashrc"))
+            .unwrap()
+            .contains("arbor init bash")
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".bash_profile")).unwrap(),
+        profile,
+        "the integration must not load twice"
+    );
+
+    let again = env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    assert!(String::from_utf8_lossy(&again.stderr).contains("already configured"));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn init_inject_bash_completes_an_existing_bashrc_setup_on_macos() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    fs::write(home.join(".bashrc"), "eval \"$(arbor init bash)\"\n").unwrap();
+
+    env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    let bashrc = fs::read_to_string(home.join(".bashrc")).unwrap();
+    assert_eq!(bashrc.matches("arbor init").count(), 1, "got: {bashrc}");
+    assert!(
+        fs::read_to_string(home.join(".bash_profile"))
+            .unwrap()
+            .contains("arbor init bash")
+    );
 }

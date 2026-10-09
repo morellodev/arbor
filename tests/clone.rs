@@ -226,3 +226,119 @@ fn clone_reports_a_malformed_arbor_toml() {
         "a broken .arbor.toml must not hide its hooks silently, got: {stderr}"
     );
 }
+
+fn repo_dir_name(env: &TestEnv) -> String {
+    env.repo
+        .path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned()
+}
+
+#[test]
+fn clone_of_an_empty_repo_succeeds_without_a_worktree() {
+    let env = TestEnv::new();
+    let empty = tempfile::TempDir::new().unwrap();
+    git(&empty, &["init", "--bare"], env.home.path());
+
+    let url = empty.path().to_string_lossy().into_owned();
+    let output = env
+        .arbor_in(env.home.path(), &["clone", &url])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        stderr.contains("No worktree created"),
+        "should explain the missing worktree, got: {stderr}"
+    );
+}
+
+#[test]
+fn clone_of_a_detached_head_resets_branches_and_explains() {
+    let env = TestEnv::new();
+    git(&env.repo, &["branch", "other"], env.home.path());
+    git(&env.repo, &["checkout", "--detach"], env.home.path());
+    // git clone guesses a branch when the detached HEAD matches a branch tip.
+    git(
+        &env.repo,
+        &["commit", "--allow-empty", "-m", "detached"],
+        env.home.path(),
+    );
+
+    let output = clone_output(&env, &[]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("not on a branch"),
+        "should explain the missing worktree, got: {stderr}"
+    );
+    let bare = env
+        .home
+        .path()
+        .join(format!(".arbor/repos/{}.git", repo_dir_name(&env)));
+    let branches = git_stdout(
+        &bare,
+        &["for-each-ref", "--format=%(refname)", "refs/heads/"],
+        env.home.path(),
+    );
+    assert_eq!(branches, "", "stale local branches should be removed");
+}
+
+#[test]
+fn failed_clone_can_be_retried() {
+    let env = TestEnv::new();
+    let blocker = env
+        .home
+        .path()
+        .join(format!(".arbor/worktrees/{}/main", repo_dir_name(&env)));
+    fs::create_dir_all(&blocker).unwrap();
+    fs::write(blocker.join("leftover"), "").unwrap();
+
+    let url = env.repo.path().to_string_lossy().into_owned();
+    let first = env
+        .arbor_in(env.home.path(), &["clone", &url])
+        .output()
+        .unwrap();
+    assert!(!first.status.success());
+    let stderr = String::from_utf8_lossy(&first.stderr);
+    assert!(
+        stderr.contains("already exists"),
+        "should name the blocking path, got: {stderr}"
+    );
+
+    fs::remove_dir_all(&blocker).unwrap();
+    clone_output(&env, &[]);
+}
+
+#[test]
+fn clone_rollback_also_removes_a_checked_out_worktree() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let env = TestEnv::new();
+    let hooks = env.home.path().join("global-hooks");
+    fs::create_dir_all(&hooks).unwrap();
+    let hook = hooks.join("post-checkout");
+    fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let url = env.repo.path().to_string_lossy().into_owned();
+    let failed = env
+        .arbor_in(env.home.path(), &["clone", &url])
+        .env("GIT_CONFIG_COUNT", "1")
+        .env("GIT_CONFIG_KEY_0", "core.hooksPath")
+        .env("GIT_CONFIG_VALUE_0", &hooks)
+        .output()
+        .unwrap();
+    assert!(!failed.status.success());
+    let worktree = env
+        .home
+        .path()
+        .join(format!(".arbor/worktrees/{}/main", repo_dir_name(&env)));
+    assert!(
+        !worktree.exists(),
+        "a worktree of the removed clone must not be left behind"
+    );
+
+    clone_output(&env, &[]);
+}

@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -10,8 +11,16 @@ pub(super) fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String> {
 }
 
 pub(super) fn run_git_output(args: &[&str], cwd: Option<&Path>) -> Result<std::process::Output> {
+    run_git_output_with_env(args, cwd, &[])
+}
+
+pub(super) fn run_git_output_with_env(
+    args: &[&str],
+    cwd: Option<&Path>,
+    env: &[(&str, &OsStr)],
+) -> Result<std::process::Output> {
     let mut cmd = Command::new("git");
-    cmd.args(args);
+    cmd.args(args).envs(env.iter().copied());
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }

@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 use std::path::Path;
 
-use common::TestEnv;
+use common::{TestEnv, git_cmd};
 
 #[test]
 fn list_alias_ls_works() {
@@ -189,5 +189,55 @@ fn list_marks_nested_worktree_as_current() {
     assert!(
         current.contains("feat"),
         "nested worktree should be marked current, got: {current}"
+    );
+}
+
+#[test]
+fn list_all_ignores_non_repo_dirs_inside_an_enclosing_repo() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    git_cmd(home, &["init"], home);
+    git_cmd(home, &["commit", "--allow-empty", "-m", "dotfiles"], home);
+    fs::create_dir_all(home.join(".arbor/repos/not-a-repo")).unwrap();
+    let real = home.join(".arbor/repos/real.git");
+    let origin = env.repo.path().to_string_lossy();
+    git_cmd(
+        home,
+        &["clone", "--bare", &origin, &real.to_string_lossy()],
+        home,
+    );
+    let real_wt = home.join("real-main");
+    git_cmd(
+        &real,
+        &["worktree", "add", &real_wt.to_string_lossy(), "main"],
+        home,
+    );
+
+    let output = env.arbor(&["ls", "--all", "--json"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("not-a-repo"),
+        "a plain dir must not be listed as a repo, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("\"real\""),
+        "the real repo should still be listed, got: {stdout}"
+    );
+}
+
+#[test]
+fn list_all_notes_dirs_git_cannot_open() {
+    let env = TestEnv::new();
+    fs::create_dir_all(env.home.path().join(".arbor/repos/broken")).unwrap();
+
+    let output = env.arbor(&["ls", "--all"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Skipping broken"),
+        "should say why the dir was skipped, got: {stderr}"
     );
 }

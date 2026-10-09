@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use super::runner::{run_git, run_git_inherited, run_git_output, run_git_with_input};
+use super::runner::{
+    run_git, run_git_inherited, run_git_output, run_git_output_with_env, run_git_with_input,
+};
 use super::types::{
     PrunedWorktree, Tracking, WorktreeInfo, parse_prune_output, parse_worktree_list,
     sanitize_branch,
@@ -191,8 +193,25 @@ pub fn is_worktree_dirty(path: &Path) -> bool {
 }
 
 pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
-    let porcelain = worktree_list_porcelain(cwd)?;
-    let entries = parse_worktree_list(&porcelain);
+    Ok(infos_from_porcelain(&worktree_list_porcelain(cwd)?))
+}
+
+/// Worktrees of the repo at `repo_path` itself. The ceiling stops git from climbing
+/// into an enclosing repo (e.g. a dotfiles HOME) when `repo_path` isn't one.
+pub fn repo_worktree_infos(repo_path: &Path) -> Result<Vec<WorktreeInfo>> {
+    let ceiling = repo_path.parent().unwrap_or(repo_path);
+    let output = run_git_output_with_env(
+        &["worktree", "list", "--porcelain"],
+        Some(repo_path),
+        &[("GIT_CEILING_DIRECTORIES", ceiling.as_os_str())],
+    )?;
+    Ok(infos_from_porcelain(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
+
+fn infos_from_porcelain(porcelain: &str) -> Vec<WorktreeInfo> {
+    let entries = parse_worktree_list(porcelain);
 
     let mut results = Vec::new();
     for entry in entries {
@@ -210,7 +229,7 @@ pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
         });
     }
 
-    Ok(results)
+    results
 }
 
 pub fn resolve_worktree_branch(branch: &str, cwd: Option<&Path>) -> Result<(PathBuf, String)> {

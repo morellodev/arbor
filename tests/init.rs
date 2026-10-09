@@ -498,26 +498,55 @@ fn init_inject_bash_covers_login_and_non_login_shells_on_macos() {
 
 #[test]
 #[cfg(target_os = "macos")]
-fn init_inject_bash_relies_on_a_login_file_that_sources_bashrc() {
+fn init_inject_bash_loads_once_when_the_login_file_sources_bashrc() {
     let env = TestEnv::new();
     let home = env.home.path();
-    let profile = "[ -f ~/.bashrc ] && . ~/.bashrc\n";
-    fs::write(home.join(".bash_profile"), profile).unwrap();
+    fs::write(
+        home.join(".bash_profile"),
+        "[ -f ~/.bashrc ] && . ~/.bashrc\n",
+    )
+    .unwrap();
 
     env.arbor(&["init", "bash", "--inject"]).output().unwrap();
-    assert!(
-        fs::read_to_string(home.join(".bashrc"))
-            .unwrap()
-            .contains("arbor init bash")
-    );
-    assert_eq!(
-        fs::read_to_string(home.join(".bash_profile")).unwrap(),
-        profile,
-        "the integration must not load twice"
-    );
-
     let again = env.arbor(&["init", "bash", "--inject"]).output().unwrap();
     assert!(String::from_utf8_lossy(&again.stderr).contains("already configured"));
+
+    let bin_dir = std::path::Path::new(env!("CARGO_BIN_EXE_arbor"))
+        .parent()
+        .unwrap();
+    let path = format!("{}:{}", bin_dir.display(), std::env::var("PATH").unwrap());
+    let output = std::process::Command::new("bash")
+        .args(["-l", "-i", "-x", "-c", "type -t arbor"])
+        .env("HOME", home)
+        .env("PATH", path)
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "function");
+    let trace = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        trace
+            .lines()
+            .filter(|l| l.trim_start_matches('+').trim() == "arbor init bash")
+            .count(),
+        1,
+        "the integration must load exactly once, trace: {trace}"
+    );
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn init_inject_bash_writes_once_through_a_dangling_login_link() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    std::os::unix::fs::symlink(".bashrc", home.join(".bash_profile")).unwrap();
+
+    env.arbor(&["init", "bash", "--inject"]).output().unwrap();
+    let bashrc = fs::read_to_string(home.join(".bashrc")).unwrap();
+    assert_eq!(
+        bashrc.matches("arbor init bash").count(),
+        1,
+        "got: {bashrc}"
+    );
 }
 
 #[test]
@@ -554,36 +583,78 @@ fn init_inject_bash_writes_once_when_the_login_file_links_to_bashrc() {
     );
 }
 
-#[test]
+/// Sources the zsh script in `zsh -f`, runs `body`, then calls the first-prompt hook,
+/// which `zsh -c` never reaches on its own. None when zsh or its compinit is missing.
 #[cfg(not(windows))]
-fn zsh_queued_completions_keep_arguments_with_spaces() {
-    let env = TestEnv::new();
+fn zsh_after_first_prompt(env: &TestEnv, body: &str, probe: &str) -> Option<String> {
+    let compinit = std::process::Command::new("zsh")
+        .args(["-f", "-c", "autoload -Uz +X compinit"])
+        .output();
+    if !compinit.is_ok_and(|out| out.status.success()) {
+        eprintln!("zsh with compinit not available, skipping");
+        return None;
+    }
     let script = env.arbor(&["init", "zsh"]).output().unwrap();
     let script_path = env.home.path().join("arbor.zsh");
     fs::write(&script_path, &script.stdout).unwrap();
 
-    // Calls the first-prompt hook directly, since `zsh -c` never shows a prompt.
-    let Ok(output) = std::process::Command::new("zsh")
+    let output = std::process::Command::new("zsh")
         .args([
             "-f",
             "-c",
-            r#"source "$1"
-compdef "_bash_complete -o nospace -C /usr/bin/tf" tf
-_arbor_compinit
-print -r -- "$_comps[tf]""#,
+            &format!("source \"$1\"\n{body}\n_arbor_compinit\n{probe}"),
             "zsh",
         ])
         .arg(&script_path)
         .env("HOME", env.home.path())
         .output()
-    else {
-        eprintln!("zsh not installed, skipping");
-        return;
-    };
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        "_bash_complete -o nospace -C /usr/bin/tf",
+        .unwrap();
+    assert!(
+        output.status.success(),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[test]
+#[cfg(not(windows))]
+fn zsh_queued_completions_keep_arguments_with_spaces() {
+    let env = TestEnv::new();
+    let Some(out) = zsh_after_first_prompt(
+        &env,
+        r#"compdef "_bash_complete -o nospace -C /usr/bin/tf" tf"#,
+        r#"print -r -- "$_comps[tf]""#,
+    ) else {
+        return;
+    };
+    assert_eq!(out, "_bash_complete -o nospace -C /usr/bin/tf");
+}
+
+#[test]
+#[cfg(not(windows))]
+fn zsh_leaves_compinit_to_a_framework_that_took_over_compdef() {
+    let env = TestEnv::new();
+    let Some(out) = zsh_after_first_prompt(
+        &env,
+        r#"typeset -ga fw_queue; compdef() { fw_queue+=("$*") }"#,
+        r#"print -r -- "${+_comps} ${#fw_queue}""#,
+    ) else {
+        return;
+    };
+    assert_eq!(out, "0 2", "compinit must wait for the framework");
+}
+
+#[test]
+#[cfg(not(windows))]
+fn zsh_runs_compinit_when_a_wrapper_hides_the_stub() {
+    let env = TestEnv::new();
+    let Some(out) = zsh_after_first_prompt(
+        &env,
+        r#"functions[orig_compdef]=$functions[compdef]; compdef() { orig_compdef "$@" }"#,
+        r#"print -r -- "$_comps[arbor]""#,
+    ) else {
+        return;
+    };
+    assert_eq!(out, "_arbor_branches");
 }

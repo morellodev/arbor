@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use super::runner::{run_git, run_git_inherited, run_git_output};
+use super::runner::{run_git, run_git_inherited, run_git_output, run_git_with_input};
 use super::types::{
     PrunedWorktree, Tracking, WorktreeInfo, parse_prune_output, parse_worktree_list,
     sanitize_branch,
@@ -107,6 +107,37 @@ pub fn configure_bare_fetch(repo_path: &Path) -> Result<()> {
         ],
         Some(repo_path),
     )?;
+    Ok(())
+}
+
+/// `clone --bare` turns every remote branch into a local branch that fetches never update.
+/// Keep only the default branch, tracking origin, so `add` builds the rest from fresh remote refs.
+pub fn reset_bare_clone_branches(repo_path: &Path, default_branch: &str) -> Result<()> {
+    let branches = run_git(
+        &[
+            "for-each-ref",
+            "--format=%(refname:lstrip=2)",
+            "refs/heads/",
+        ],
+        Some(repo_path),
+    )?;
+    // Fed through stdin: repos with thousands of branches overflow the argument limit.
+    let deletions: String = branches
+        .lines()
+        .filter(|b| *b != default_branch)
+        .map(|b| format!("delete refs/heads/{b}\n"))
+        .collect();
+    if !deletions.is_empty() {
+        run_git_with_input(&["update-ref", "--stdin"], Some(repo_path), &deletions)?;
+    }
+
+    if remote_branch_exists(default_branch, Some(repo_path))? {
+        let upstream = format!("origin/{default_branch}");
+        run_git(
+            &["branch", "--set-upstream-to", &upstream, default_branch],
+            Some(repo_path),
+        )?;
+    }
     Ok(())
 }
 

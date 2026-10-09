@@ -20,12 +20,13 @@ cargo test --test integration  # Integration tests only
 
 ## Commit messages
 
-This project uses [conventional commits](https://www.conventionalcommits.org/). The commit type determines the version bump at release time:
+This project uses [conventional commits](https://www.conventionalcommits.org/). The commit type determines whether a release happens and how big the version bump is. While arbor is at 0.x, a minor bump marks a breaking change:
 
-- `fix: ...` — patch release (0.1.0 → 0.1.1)
-- `feat: ...` — minor release (0.1.0 → 0.2.0)
-- `feat!: ...` or `BREAKING CHANGE:` in the footer — major release (0.1.0 → 1.0.0)
-- `chore:`, `docs:`, `refactor:`, `test:` — no release
+- `fix: ...`, `feat: ...`, `refactor: ...`, `perf: ...` — patch release (0.4.0 → 0.4.1)
+- `feat!: ...` or `BREAKING CHANGE:` in the footer — minor release (0.4.0 → 0.5.0)
+- `chore:`, `ci:`, `docs:`, `test:` — no release on their own
+
+From 1.0 on, `feat:` bumps the minor version and breaking changes bump the major version.
 
 ## Submitting changes
 
@@ -36,7 +37,7 @@ This project uses [conventional commits](https://www.conventionalcommits.org/). 
 
 ## Releasing
 
-Releases are fully automated via [release-plz](https://release-plz.ieni.dev/). When commits land on `main`, release-plz opens (or updates) a release PR that bumps the version in Cargo.toml and updates CHANGELOG.md. Merging that PR creates a git tag, which triggers cross-platform builds, a GitHub Release, and a Homebrew tap update. No manual steps needed.
+Releases are fully automated via [release-plz](https://release-plz.ieni.dev/). When commits land on `main`, release-plz opens (or updates) a release PR that bumps the version in Cargo.toml and updates CHANGELOG.md. Merging that PR creates a git tag and a GitHub Release, which triggers cross-platform builds and a Homebrew tap update. No manual steps needed.
 
 ## Reporting bugs
 

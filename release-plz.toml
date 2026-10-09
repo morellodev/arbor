@@ -1,6 +1,4 @@
 [workspace]
-# Don't create GitHub Releases — release.yml handles that after tagging
-git_release_enable = false
 # Use git tags for version detection (not published to crates.io).
 # Implies `cargo publish` is skipped.
 git_only = true
@@ -8,5 +6,7 @@ git_only = true
 git_tag_name = "v{{ version }}"
 # Use conventional commits to determine version bumps and generate changelog
 changelog_update = true
-# Only open release PRs for user-facing changes
-release_commits = "^(feat|fix|refactor|perf)"
+# Only open release PRs for changes that affect the shipped binary
+release_commits = "^(feat|fix|refactor|perf)[(:!]"
+# Only release when a release PR (branch prefix `release-plz-`) is merged
+release_always = false

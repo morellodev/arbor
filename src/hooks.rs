@@ -82,7 +82,7 @@ fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(String, String)]) -> any
 
     let status = command.status()?;
     if !status.success() {
-        anyhow::bail!("Hook failed: {cmd} ({status})");
+        anyhow::bail!("Hook failed: {} ({status})", one_line(cmd));
     }
     Ok(())
 }
@@ -116,6 +116,11 @@ pub fn load_worktree_dir_from_git(cwd: &Path) -> anyhow::Result<Option<String>> 
     Ok(config.worktree_dir)
 }
 
+// A newline inside a hook command could print a line that passes for arbor's own output.
+fn one_line(cmd: &str) -> String {
+    cmd.replace('\n', "\\n")
+}
+
 pub fn run_post_create(ctx: &HookContext) {
     let config = match load_project_config(&ctx.worktree_path) {
         Ok(Some(config)) => config,
@@ -142,7 +147,7 @@ pub fn run_post_create(ctx: &HookContext) {
     ];
 
     for cmd in &commands {
-        display::print_note(&format!("Running hook: {cmd}"));
+        display::print_note(&format!("Running hook: {}", one_line(cmd)));
         if let Err(e) = run_hook_command(cmd, &ctx.worktree_path, &env_vars) {
             display::print_error(&format!("{e}"));
         }

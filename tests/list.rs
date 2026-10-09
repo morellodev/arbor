@@ -241,3 +241,23 @@ fn list_all_notes_dirs_git_cannot_open() {
         "should say why the dir was skipped, got: {stderr}"
     );
 }
+
+#[test]
+fn list_escapes_control_characters_in_paths() {
+    let env = TestEnv::new();
+    common::commit_arbor_toml(&env, "worktree_dir = \"wt\\u001b[2K\"\n");
+    env.add_worktree("feat");
+
+    let output = env.arbor(&["ls", "--color", "never"]).output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains('\u{1b}'),
+        "raw control characters must not reach the terminal, got: {stdout:?}"
+    );
+    assert!(
+        stdout.contains("wt\\u{1b}[2K"),
+        "the path should be shown escaped, got: {stdout}"
+    );
+}

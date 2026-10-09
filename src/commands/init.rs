@@ -45,20 +45,26 @@ fn env_dir(name: &str) -> Option<PathBuf> {
         .filter(|dir| dir.is_absolute())
 }
 
-fn config_file_path(shell: &Shell) -> Result<PathBuf> {
+/// The startup files that must load the integration. On macOS, terminals start login
+/// shells, which skip ~/.bashrc, while `bash` started from another shell reads only it.
+fn config_files(shell: &Shell) -> Result<Vec<PathBuf>> {
     let home = std::env::home_dir().context("Could not determine home directory")?;
     Ok(match shell {
-        Shell::Bash if cfg!(target_os = "macos") => bash_login_file(&home),
-        Shell::Bash => home.join(".bashrc"),
-        Shell::Zsh => env_dir("ZDOTDIR").unwrap_or(home).join(".zshrc"),
-        Shell::Fish => env_dir("XDG_CONFIG_HOME")
-            .unwrap_or_else(|| home.join(".config"))
-            .join("fish/config.fish"),
+        Shell::Bash if cfg!(target_os = "macos") => {
+            vec![home.join(".bashrc"), bash_login_file(&home)]
+        }
+        Shell::Bash => vec![home.join(".bashrc")],
+        Shell::Zsh => vec![env_dir("ZDOTDIR").unwrap_or(home).join(".zshrc")],
+        Shell::Fish => vec![
+            env_dir("XDG_CONFIG_HOME")
+                .unwrap_or_else(|| home.join(".config"))
+                .join("fish/config.fish"),
+        ],
     })
 }
 
-/// macOS terminals start login shells, which skip ~/.bashrc and read only the first
-/// of these that exists; creating ~/.bash_profile would hide an existing ~/.profile.
+/// Login shells read only the first of these that exists; creating ~/.bash_profile
+/// would hide an existing ~/.profile.
 fn bash_login_file(home: &Path) -> PathBuf {
     [".bash_profile", ".bash_login", ".profile"]
         .into_iter()
@@ -95,22 +101,20 @@ fn already_configured(path: &Path) -> Result<bool> {
     }))
 }
 
-/// macOS bash setups from before arbor targeted the login file live in ~/.bashrc,
-/// which ~/.bash_profile usually sources.
-fn configured_file(shell: &Shell, config_path: &Path) -> Result<Option<PathBuf>> {
-    let mut candidates = vec![config_path.to_path_buf()];
-    if matches!(shell, Shell::Bash)
-        && cfg!(target_os = "macos")
-        && let Some(home) = std::env::home_dir()
-    {
-        candidates.push(home.join(".bashrc"));
-    }
-    for path in candidates {
-        if already_configured(&path)? {
-            return Ok(Some(path));
-        }
-    }
-    Ok(None)
+/// A login file that sources ~/.bashrc already gets the integration from there.
+fn sources_bashrc(path: &Path) -> Result<bool> {
+    let content = read_config(path)?;
+    Ok(String::from_utf8_lossy(&content).lines().any(|line| {
+        let line = line.trim_start();
+        !line.starts_with('#')
+            && line.contains(".bashrc")
+            && (line.contains("source") || line.contains(". "))
+    }))
+}
+
+fn needs_integration(path: &Path) -> Result<bool> {
+    let is_bashrc = path.file_name().is_some_and(|name| name == ".bashrc");
+    Ok(!already_configured(path)? && (is_bashrc || !sources_bashrc(path)?))
 }
 
 fn inject_into_config(path: &Path, line: &str) -> Result<()> {
@@ -143,15 +147,31 @@ pub fn run(shell: Option<&str>, inject: bool) -> Result<()> {
         return print_script(&shell);
     }
 
-    let config_path = config_file_path(&shell)?;
+    let files = config_files(&shell)?;
     let line = eval_line(&shell);
-    let short_path = display::shorten_path(&config_path);
+    let mut targets = Vec::new();
+    for path in &files {
+        if needs_integration(path)? {
+            targets.push(path.as_path());
+        }
+    }
 
-    if let Some(found) = configured_file(&shell, &config_path)? {
+    if targets.is_empty() {
         display::print_ok("Shell integration is already configured");
-        display::print_hint(&format!("Found in {}", display::shorten_path(&found)));
+        let mut found = Vec::new();
+        for path in &files {
+            if already_configured(path)? {
+                found.push(display::shorten_path(path));
+            }
+        }
+        display::print_hint(&format!("Found in {}", found.join(", ")));
         return Ok(());
     }
+    let short_path = targets
+        .iter()
+        .map(|path| display::shorten_path(path))
+        .collect::<Vec<_>>()
+        .join(" and ");
 
     let should_inject = if inject {
         true
@@ -170,9 +190,11 @@ pub fn run(shell: Option<&str>, inject: bool) -> Result<()> {
     };
 
     if should_inject {
-        inject_into_config(&config_path, line)?;
+        for path in &targets {
+            inject_into_config(path, line)?;
+        }
         display::print_ok(&format!("Added shell integration to {short_path}"));
-        print_restart_hint(&config_path);
+        print_restart_hint(targets[0]);
     } else {
         display::print_note(
             "No changes made. To set up manually, add the lines above to your shell config",

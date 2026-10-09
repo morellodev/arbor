@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::Context;
 use serde::Deserialize;
 
-use crate::{config, display, git};
+use crate::{display, git};
 
 #[derive(Debug, Deserialize)]
 struct ProjectConfig {
@@ -87,15 +87,34 @@ fn run_hook_command(cmd: &str, cwd: &Path, env_vars: &[(String, String)]) -> any
     Ok(())
 }
 
-pub fn resolve_worktree_dir(raw: &str, repo_root: &Path) -> anyhow::Result<PathBuf> {
+/// The worktree root a repo's own `.arbor.toml` asks for. Only a relative path inside the
+/// working tree is used: anything else could place repo content where it gets executed.
+pub fn repo_worktree_dir(raw: &str, repo_root: &Path, bare: bool) -> Option<PathBuf> {
     let path = Path::new(raw);
-    if path.is_absolute() {
-        Ok(path.to_path_buf())
-    } else if raw.starts_with('~') {
-        config::expand_tilde(path)
-    } else {
-        Ok(repo_root.join(raw))
+    let stays_inside = !raw.starts_with('~')
+        && path
+            .components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+    let enters_git_dir = path
+        .components()
+        .find_map(|c| match c {
+            Component::Normal(name) => Some(name),
+            _ => None,
+        })
+        .is_some_and(|first| first.eq_ignore_ascii_case(".git"));
+
+    if !stays_inside || enters_git_dir {
+        display::print_note(&format!(
+            "Ignored worktree_dir {raw} from .arbor.toml: only relative paths inside the \
+             repo are used. Set worktree_dir in ~/.arbor/config.toml for other locations"
+        ));
+        return None;
     }
+    // A bare repo has no working tree; anything inside it is the git dir itself.
+    if bare {
+        return None;
+    }
+    Some(repo_root.join(path))
 }
 
 pub fn load_worktree_dir_from_path(dir: &Path) -> anyhow::Result<Option<String>> {
@@ -233,22 +252,42 @@ post_create = "npm install"
     }
 
     #[test]
-    fn resolve_absolute_worktree_dir() {
-        let result = resolve_worktree_dir("/tmp/worktrees", Path::new("/some/repo")).unwrap();
-        assert_eq!(result, PathBuf::from("/tmp/worktrees"));
+    fn repo_worktree_dir_accepts_paths_inside_the_working_tree() {
+        let root = Path::new("/some/repo");
+        assert_eq!(
+            repo_worktree_dir(".claude/worktrees", root, false),
+            Some(root.join(".claude/worktrees"))
+        );
+        assert_eq!(
+            repo_worktree_dir("./wt", root, false),
+            Some(root.join("./wt"))
+        );
     }
 
     #[test]
-    fn resolve_tilde_worktree_dir() {
-        let home = std::env::home_dir().unwrap();
-        let result = resolve_worktree_dir("~/custom/wt", Path::new("/some/repo")).unwrap();
-        assert_eq!(result, home.join("custom/wt"));
+    fn repo_worktree_dir_rejects_paths_that_leave_the_working_tree() {
+        let root = Path::new("/some/repo");
+        for raw in [
+            "~",
+            "~/bin",
+            "../outside",
+            "wt/../../outside",
+            ".git",
+            ".GIT/hooks",
+        ] {
+            assert_eq!(repo_worktree_dir(raw, root, false), None, "{raw}");
+        }
+        let absolute = std::env::temp_dir().join("wt");
+        assert_eq!(
+            repo_worktree_dir(&absolute.to_string_lossy(), root, false),
+            None
+        );
     }
 
     #[test]
-    fn resolve_relative_worktree_dir() {
-        let result = resolve_worktree_dir(".claude/worktrees", Path::new("/some/repo")).unwrap();
-        assert_eq!(result, PathBuf::from("/some/repo/.claude/worktrees"));
+    fn repo_worktree_dir_is_never_used_in_a_bare_repo() {
+        assert_eq!(repo_worktree_dir(".", Path::new("/r.git"), true), None);
+        assert_eq!(repo_worktree_dir("wt", Path::new("/r.git"), true), None);
     }
 
     #[test]

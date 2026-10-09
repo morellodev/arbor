@@ -31,7 +31,7 @@ fn add_with_local_worktree_dir_relative() {
 }
 
 #[test]
-fn add_with_local_worktree_dir_absolute() {
+fn add_ignores_local_worktree_dir_outside_the_repo() {
     let env = TestEnv::new();
     let abs_dir = env.home.path().join("custom-wt");
     let abs_str = abs_dir.to_string_lossy().replace('\\', "/");
@@ -44,13 +44,19 @@ fn add_with_local_worktree_dir_absolute() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let printed_path = stdout_path(&output);
-    let actual = fs::canonicalize(&printed_path).unwrap();
-    let expected = fs::canonicalize(abs_dir.join("feat")).unwrap();
-    assert_eq!(
-        actual, expected,
-        "worktree should be at absolute path, got {}",
-        printed_path
+    assert!(
+        !abs_dir.exists(),
+        "a repo must not place worktrees outside itself"
+    );
+    assert!(
+        Path::new(&stdout_path(&output)).starts_with(env.home.path().join(".arbor/worktrees")),
+        "should fall back to the configured worktree_dir, got: {}",
+        stdout_path(&output)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Ignored worktree_dir"),
+        "should explain why worktree_dir was ignored, got: {stderr}"
     );
 }
 

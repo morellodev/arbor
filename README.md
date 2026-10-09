@@ -146,17 +146,14 @@ This creates worktrees at `<project-root>/.claude/worktrees/<branch>` instead
 of the global default. Useful for keeping worktrees colocated with the project
 (e.g. for Claude Code parallel sessions).
 
-**Path resolution:**
+The path is resolved from the repository root, and there is no `<repo-name>`
+subdirectory — the config is already scoped to one project.
 
-| Value | Resolves to |
-| --- | --- |
-| `.claude/worktrees` | `<repo-root>/.claude/worktrees/<branch>` |
-| `~/my-worktrees` | `$HOME/my-worktrees/<branch>` |
-| `/tmp/worktrees` | `/tmp/worktrees/<branch>` |
-
-Relative paths are resolved from the repository root. When using the local
-override, there is no `<repo-name>` subdirectory — the config is already
-scoped to one project.
+Because `.arbor.toml` comes from the repo, only relative paths inside the
+working tree are used: absolute paths, `~`, `..` and the `.git` directory are
+ignored with a note, and the global default applies. To put worktrees elsewhere,
+set `worktree_dir` in `~/.arbor/config.toml`. Bare repos (as created by
+`arbor clone`) have no working tree, so they always use the global default.
 
 ## Hooks
 

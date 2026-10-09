@@ -45,11 +45,8 @@ pub fn run(config: &Config, url: &str, no_worktree: bool, no_hooks: bool) -> Res
     display::print_ok(&format!("Cloned to {}", display::shorten_path(&dest)));
 
     if !no_worktree && let Some(default_branch) = default_branch {
-        let wt_path = match hooks::load_worktree_dir_from_git(&dest)? {
-            Some(raw) => hooks::resolve_worktree_dir(&raw, &dest)?
-                .join(git::sanitize_branch(&default_branch)),
-            None => config.worktree_path(&name, &default_branch),
-        };
+        // A bare clone has no working tree, so a repo's own worktree_dir never applies.
+        let wt_path = config.worktree_path(&name, &default_branch);
 
         fs::create_dir_all(
             wt_path

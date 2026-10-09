@@ -28,7 +28,9 @@ pub fn parse_worktree_list(porcelain: &str) -> Vec<ParsedWorktree> {
     let mut current_branch: Option<String> = None;
     let mut current_bare = false;
 
-    for line in porcelain.lines() {
+    // With `-z`, fields end in NUL and paths may contain newlines.
+    let separator = if porcelain.contains('\0') { '\0' } else { '\n' };
+    for line in porcelain.split(separator) {
         if let Some(path) = line.strip_prefix("worktree ") {
             if let Some(p) = current_path.take() {
                 results.push(ParsedWorktree {
@@ -203,6 +205,18 @@ branch refs/heads/develop
             PathBuf::from("/Users/jane doe/My Projects/cool app")
         );
         assert_eq!(result[0].branch.as_deref(), Some("develop"));
+    }
+
+    #[test]
+    fn parse_nul_separated_path_with_newline() {
+        let input = "worktree /code/nl\nx\0HEAD abc1234\0branch refs/heads/main\0\0\
+worktree /wt/feat\0HEAD def5678\0detached\0\0";
+        let result = parse_worktree_list(input);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].path, PathBuf::from("/code/nl\nx"));
+        assert_eq!(result[0].branch.as_deref(), Some("main"));
+        assert_eq!(result[1].path, PathBuf::from("/wt/feat"));
+        assert_eq!(result[1].branch, None);
     }
 
     #[test]

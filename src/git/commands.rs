@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -16,16 +17,12 @@ pub fn show_file_from_head(file: &str, cwd: &Path) -> Result<String> {
 }
 
 pub fn repo_toplevel() -> Result<PathBuf> {
-    let porcelain = run_git(&["worktree", "list", "--porcelain"], None)
-        .context("Not inside a git repository")?;
-    let first_line = porcelain
-        .lines()
+    let porcelain = worktree_list_porcelain(None).context("Not inside a git repository")?;
+    parse_worktree_list(&porcelain)
+        .into_iter()
         .next()
-        .context("Empty worktree list output")?;
-    let path = first_line
-        .strip_prefix("worktree ")
-        .context("Unexpected worktree list format")?;
-    Ok(PathBuf::from(path))
+        .map(|wt| wt.path)
+        .context("Empty worktree list output")
 }
 
 pub fn repo_name_or_unknown() -> String {
@@ -137,7 +134,17 @@ pub fn create_tracking_branch(branch: &str, remote: &str, cwd: Option<&Path>) ->
 }
 
 pub fn worktree_list_porcelain(cwd: Option<&Path>) -> Result<String> {
-    run_git(&["worktree", "list", "--porcelain"], cwd)
+    worktree_list_with_env(cwd, &[])
+}
+
+/// `-z` keeps paths containing newlines intact; git before 2.36 doesn't have it.
+fn worktree_list_with_env(cwd: Option<&Path>, env: &[(&str, &OsStr)]) -> Result<String> {
+    let list = |args: &[&str]| {
+        run_git_output_with_env(args, cwd, env)
+            .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+    };
+    list(&["worktree", "list", "--porcelain", "-z"])
+        .or_else(|_| list(&["worktree", "list", "--porcelain"]))
 }
 
 pub fn worktree_remove(path: &Path, force: bool) -> Result<()> {
@@ -282,14 +289,11 @@ pub fn worktree_infos(cwd: Option<&Path>) -> Result<Vec<WorktreeInfo>> {
 /// into an enclosing repo (e.g. a dotfiles HOME) when `repo_path` isn't one.
 pub fn repo_worktree_infos(repo_path: &Path) -> Result<Vec<WorktreeInfo>> {
     let ceiling = repo_path.parent().unwrap_or(repo_path);
-    let output = run_git_output_with_env(
-        &["worktree", "list", "--porcelain"],
+    let porcelain = worktree_list_with_env(
         Some(repo_path),
         &[("GIT_CEILING_DIRECTORIES", ceiling.as_os_str())],
     )?;
-    Ok(infos_from_porcelain(&String::from_utf8_lossy(
-        &output.stdout,
-    )))
+    Ok(infos_from_porcelain(&porcelain))
 }
 
 fn infos_from_porcelain(porcelain: &str) -> Vec<WorktreeInfo> {

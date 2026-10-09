@@ -411,6 +411,29 @@ fn add_does_not_blame_an_enclosing_repo_for_a_stale_dir() {
 }
 
 #[test]
+#[cfg(not(windows))]
+fn add_handles_a_repo_path_containing_a_newline() {
+    let env = TestEnv::new();
+    let home = env.home.path();
+    let repo = home.join("nl\nrepo");
+    std::fs::create_dir_all(&repo).unwrap();
+    git_cmd(&repo, &["init"], home);
+    git_cmd(&repo, &["commit", "--allow-empty", "-m", "init"], home);
+
+    let output = env.arbor_in(&repo, &["add", "feat"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout_path(&output).ends_with("worktrees/nl\nrepo/feat"),
+        "the repo name must keep its newline, got: {:?}",
+        stdout_path(&output)
+    );
+}
+
+#[test]
 fn add_with_remote_prefix_rejects_an_unrelated_local_branch() {
     let env = TestEnv::new();
     let clone = clone_with_remote(&env, "upstream");

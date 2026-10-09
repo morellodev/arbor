@@ -286,7 +286,7 @@ fn clone_of_a_detached_head_resets_branches_and_explains() {
 }
 
 #[test]
-fn failed_clone_can_be_retried() {
+fn clone_keeps_the_clone_when_the_worktree_path_is_taken() {
     let env = TestEnv::new();
     let blocker = env
         .home
@@ -295,20 +295,23 @@ fn failed_clone_can_be_retried() {
     fs::create_dir_all(&blocker).unwrap();
     fs::write(blocker.join("leftover"), "").unwrap();
 
-    let url = env.repo.path().to_string_lossy().into_owned();
-    let first = env
-        .arbor_in(env.home.path(), &["clone", &url])
-        .output()
-        .unwrap();
-    assert!(!first.status.success());
-    let stderr = String::from_utf8_lossy(&first.stderr);
+    let output = clone_output(&env, &[]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("already exists"),
+        stderr.contains("No worktree created") && stderr.contains("already exists"),
         "should name the blocking path, got: {stderr}"
     );
-
-    fs::remove_dir_all(&blocker).unwrap();
-    clone_output(&env, &[]);
+    assert!(
+        blocker.join("leftover").exists(),
+        "the folder must be left alone"
+    );
+    assert!(
+        env.home
+            .path()
+            .join(format!(".arbor/repos/{}.git", repo_dir_name(&env)))
+            .is_dir(),
+        "the finished clone should be kept"
+    );
 }
 
 #[test]

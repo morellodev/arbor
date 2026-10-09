@@ -84,8 +84,14 @@ fn set_up_clone(
 
     // A bare clone has no working tree, so a repo's own worktree_dir never applies.
     let wt_path = config.worktree_path(name, &default_branch);
+    // The clone itself is fine; deleting it would only force a new download.
     if wt_path.exists() {
-        bail!("{} already exists", display::shorten_path(&wt_path));
+        display::print_note(&format!(
+            "No worktree created: {} already exists",
+            display::shorten_path(&wt_path)
+        ));
+        print_next_steps(dest);
+        return Ok(());
     }
     let parent = wt_path
         .parent()

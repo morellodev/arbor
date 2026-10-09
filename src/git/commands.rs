@@ -141,6 +141,10 @@ pub fn reset_bare_clone_branches(repo_path: &Path, default_branch: &str) -> Resu
     Ok(())
 }
 
+pub fn is_bare_repository(cwd: &Path) -> bool {
+    run_git(&["rev-parse", "--is-bare-repository"], Some(cwd)).is_ok_and(|out| out == "true")
+}
+
 pub fn fetch_origin(repo_path: &Path) -> Result<()> {
     run_git_inherited(&["fetch", "origin"], Some(repo_path))
 }

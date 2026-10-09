@@ -5,7 +5,7 @@ mod common;
 use std::fs;
 use std::path::PathBuf;
 
-use common::{TestEnv, git, git_stdout, stdout_path};
+use common::{TestEnv, commit_arbor_toml, git, git_stdout, stdout_path};
 
 fn clone_origin(env: &TestEnv, extra: &[&str]) -> PathBuf {
     let url = env.repo.path().to_string_lossy().into_owned();
@@ -80,4 +80,26 @@ fn add_after_fetch_uses_latest_remote_commit() {
         env.home.path(),
     );
     assert_eq!(subject, "newer", "worktree should be at the fetched commit");
+}
+
+#[test]
+fn add_in_bare_repo_honors_committed_worktree_dir() {
+    let env = TestEnv::new();
+    let custom = env.home.path().join("custom-wt");
+    commit_arbor_toml(
+        &env,
+        &format!("worktree_dir = \"{}\"\n", custom.to_string_lossy()),
+    );
+    let bare = clone_origin(&env, &["--no-worktree"]);
+
+    let add = env.arbor_in(&bare, &["add", "feat"]).output().unwrap();
+    assert!(
+        add.status.success(),
+        "add should succeed, stderr: {}",
+        String::from_utf8_lossy(&add.stderr)
+    );
+    assert_eq!(
+        fs::canonicalize(stdout_path(&add)).unwrap(),
+        fs::canonicalize(&custom).unwrap().join("feat"),
+    );
 }

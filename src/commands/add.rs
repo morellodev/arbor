@@ -80,7 +80,12 @@ fn resolve_wt_path(
     branch: &str,
     repo_root: &std::path::Path,
 ) -> Result<std::path::PathBuf> {
-    let local_override = hooks::load_worktree_dir_from_path(repo_root)?
+    let raw_override = if git::is_bare_repository(repo_root) {
+        hooks::load_worktree_dir_from_git(repo_root)?
+    } else {
+        hooks::load_worktree_dir_from_path(repo_root)?
+    };
+    let local_override = raw_override
         .map(|r| hooks::resolve_worktree_dir(&r, repo_root))
         .transpose()?;
 

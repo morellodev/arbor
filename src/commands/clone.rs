@@ -98,6 +98,7 @@ fn expand_shorthand(input: &str) -> String {
 ///   git@github.com:user/repo.git    → repo
 ///   https://github.com/user/repo    → repo
 fn repo_name_from_url(url: &str) -> Result<String> {
+    let url = url.trim_end_matches('/');
     let segment = if url.contains('/') {
         url.rsplit('/').next()
     } else {
@@ -121,6 +122,12 @@ mod tests {
     #[test]
     fn https_url_without_git_suffix() {
         let name = repo_name_from_url("https://github.com/user/repo").unwrap();
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn https_url_with_trailing_slash() {
+        let name = repo_name_from_url("https://github.com/user/repo/").unwrap();
         assert_eq!(name, "repo");
     }
 
